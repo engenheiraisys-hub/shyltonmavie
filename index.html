@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shylton Mavie Â· Arquiteto e produtor de ambientes</title>
+<meta name="description" content="Shylton Mavie, arquiteto, urbanista e produtor de ambientes em FlorianÃ³polis e SÃ£o Paulo. ProduÃ§Ã£o para fotografia, mostras e clientes finais.">
+<link rel="canonical" href="https://shyltonmavie.com/">
+<meta name="theme-color" content="#F6F4F0">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:site_name" content="Shylton Mavie">
+<meta property="og:title" content="Shylton Mavie Â· Arquiteto e produtor de ambientes">
+<meta property="og:description" content="Shylton Mavie, arquiteto, urbanista e produtor de ambientes em FlorianÃ³polis e SÃ£o Paulo. ProduÃ§Ã£o para fotografia, mostras e clientes finais.">
+<meta property="og:url" content="https://shyltonmavie.com/">
+<meta property="og:image" content="https://shyltonmavie.com/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Shylton Mavie, arquiteto e produtor de ambientes">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300..600&display=swap">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<svg class="defs" aria-hidden="true" focusable="false">
+  <defs>
+    <!-- Símbolo: o círculo é a ideia; a base, a estrutura que a sustenta -->
+    <g id="g-simb">
+      <circle cx="48" cy="36" r="36"/>
+      <rect x="0" y="82" width="96" height="4"/>
+      <rect x="22" y="84" width="4" height="64"/>
+      <rect x="70" y="84" width="4" height="64"/>
+    </g>
+    <!-- Símbolo vazado (páginas internas, tamanho pequeno): círculo em contorno; traço 8 para não sumir ao lado do nome -->
+    <g id="g-simb-v">
+      <path fill-rule="evenodd" d="M48 0a36 36 0 1 1 0 72a36 36 0 1 1 0-72zM48 8a28 28 0 1 0 0 56a28 28 0 1 0 0-56z"/>
+      <rect x="0" y="80" width="96" height="8"/>
+      <rect x="20" y="84" width="8" height="64"/>
+      <rect x="68" y="84" width="8" height="64"/>
+    </g>
+    <!-- Assinatura horizontal: símbolo | nome em Josefin Sans, peso 335 -->
+    <g id="g-horizontal" fill="currentColor">
+      <use href="#g-simb-v"/>
+      <rect x="157" y="4" width="2" height="140" opacity=".3"/>
+      <text x="220" y="106" textLength="735" lengthAdjust="spacing" style="font-family:'Josefin Sans',sans-serif;font-weight:335;font-size:84px">SHYLTON MAVIE</text>
+    </g>
+  </defs>
+</svg>
+
+<!-- Início -->
+<main class="view inicio" id="v-inicio" data-view="inicio">
+  <section class="palco" aria-label="Produções em destaque">
+    <header class="palco__faixa">
+      <h1 class="palco__nome"><a href="#inicio" aria-label="Shylton Mavie, arquiteto e produtor de ambientes">Shylton Mavie</a></h1>
+    </header>
+    <div class="palco__fotos" id="palco-fotos"></div>
+    <a class="palco__logo" href="#inicio" aria-label="Shylton Mavie, início"><svg class="logo" viewBox="0 0 96 148" role="img" aria-label="Shylton Mavie"><use href="#g-simb" fill="currentColor"/></svg></a>
+    <nav class="palco__nav" aria-label="Principal">
+      <a href="#producoes">Produções</a>
+      <a href="#atividades">Atividades</a>
+      <a href="#sobre">Sobre</a>
+      <a href="#contato">Contato</a>
+      <a href="#adm">Área restrita</a>
+    </nav>
+  </section>
+  <div class="passos" id="palco-passos" aria-hidden="true"></div>
+</main>
+
+<!-- Produções -->
+<section class="view" id="v-producoes" data-view="producoes" hidden>
+  <header class="barra">
+    <a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, início"><svg class="barra__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="barra__nome">Shylton Mavie</span></a>
+    <button type="button" class="menu-btn" data-menu aria-label="Menu" aria-expanded="false" aria-controls="menu"><svg class="menu-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6.5h18M3 12h18M3 17.5h18"/></svg></button>
+  </header>
+  <h1 class="pag__titulo">Produções</h1>
+  <div class="filtros pag__filtros" id="filtros" role="group" aria-label="Tipos de projeto"></div>
+  <div class="grade" id="grade"></div>
+  <!-- Parceiros: logos em grafite com fundo transparente; --h ajusta a altura de cada um para o peso visual ficar parecido -->
+  <section class="marcas" aria-labelledby="marcas-tit">
+    <h2 class="linha__rot" id="marcas-tit">Marcas que cruzaram meu caminho</h2>
+    <ul class="marcas__lista">
+      <li class="marca" style="--h:46px"><img src="img/marcas/casacor.png" alt="CASACOR Santa Catarina" width="311" height="120" loading="lazy"></li>
+      <li class="marca" style="--h:40px"><img src="img/marcas/casacor-sp.png" alt="CASACOR São Paulo" width="145" height="49" loading="lazy"></li>
+      <li class="marca" style="--h:46px"><img src="img/marcas/tidelli.png" alt="Tidelli Outdoor Living" width="142" height="63" loading="lazy"></li>
+      <li class="marca" style="--h:34px"><img src="img/marcas/dimas.png" alt="Dimas Construções" width="132" height="42" loading="lazy"></li>
+      <li class="marca" style="--h:38px"><img src="img/marcas/chiquetti-dal-vesco.png" alt="" width="110" height="152" loading="lazy"><span>Chiquetti e Dal Vesco</span></li>
+      <li class="marca" style="--h:40px"><img src="img/marcas/contti.png" alt="ContTi Home Design" width="126" height="48" loading="lazy"></li>
+      <li class="marca" style="--h:36px"><img src="img/marcas/masotti.png" alt="Masotti Móveis" width="146" height="46" loading="lazy"></li>
+      <li class="marca" style="--h:32px"><img src="img/marcas/marble.png" alt="Marble Superfícies" width="597" height="120" loading="lazy"></li>
+      <li class="marca" style="--h:44px"><img src="img/marcas/unique.png" alt="Unique Jurerê" width="184" height="71" loading="lazy"></li>
+      <li class="marca" style="--h:20px"><img src="img/marcas/tetto.png" alt="Tetto" width="238" height="39" loading="lazy"></li>
+      <li class="marca" style="--h:40px"><img src="img/marcas/terraco.png" alt="Terraço Paisagismo" width="136" height="59" loading="lazy"></li>
+      <li class="marca" style="--h:36px"><img src="img/marcas/autoria.png" alt="Autoria Design" width="132" height="43" loading="lazy"></li>
+      <li class="marca" style="--h:18px"><img src="img/marcas/beatriz-zeglin.png" alt="Beatriz Zeglin" width="388" height="47" loading="lazy"></li>
+      <li class="marca" style="--h:22px"><img src="img/marcas/mariana-maisonnave.png" alt="Mariana Maisonnave Arquitetura e Interiores" width="361" height="46" loading="lazy"></li>
+      <li class="marca" style="--h:24px"><img src="img/marcas/manu-pagliosa.png" alt="Manu Pagliosa" width="636" height="120" loading="lazy"></li>
+      <li class="marca" style="--h:28px"><img src="img/marcas/patricia-nobrega.png" alt="Patrícia Nóbrega Interior Design" width="228" height="50" loading="lazy"></li>
+      <li class="marca" style="--h:22px"><img src="img/marcas/bloco-b.png" alt="Bloco B Arquitetura" width="150" height="28" loading="lazy"></li>
+      <li class="marca" style="--h:26px"><img src="img/marcas/octaedro.png" alt="Octaedro Arquitetura" width="163" height="37" loading="lazy"></li>
+      <li class="marca" style="--h:17px"><img src="img/marcas/lisboa-demarche.png" alt="Lisbôa Demarche" width="468" height="42" loading="lazy"></li>
+      <li class="marca" style="--h:32px"><img src="img/marcas/arqo.png" alt="ARQO" width="182" height="60" loading="lazy"></li>
+      <li class="marca" style="--h:52px"><img src="img/marcas/moveis-ce.png" alt="Móveis Cé" width="126" height="120" loading="lazy"></li>
+      <li class="marca" style="--h:36px"><img src="img/marcas/micael-carminatti.png" alt="Studio Micael Carminatti" width="455" height="103" loading="lazy"></li>
+      <li class="marca" style="--h:58px"><img src="img/marcas/jacobus-buzzi.png" alt="Jacobus Buzzi Arquitetos" width="224" height="120" loading="lazy"></li>
+    </ul>
+  </section>
+  <footer class="rodape"><span>© 2026 Shylton Mavie</span></footer>
+</section>
+
+<!-- Projeto -->
+<section class="view" id="v-projeto" data-view="projeto" hidden>
+  <div class="det__hero">
+    <img id="det-capa" src="" alt="">
+    <header class="barra barra--clara">
+      <a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, início"><svg class="barra__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="barra__nome">Shylton Mavie</span></a>
+      <button type="button" class="menu-btn" data-menu aria-label="Menu" aria-expanded="false" aria-controls="menu"><svg class="menu-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6.5h18M3 12h18M3 17.5h18"/></svg></button>
+    </header>
+    <div class="det__centro">
+      <a href="#producoes" class="det__volta">Produções</a>
+      <h1 class="det__nome" id="det-nome"></h1>
+      <p class="det__meta" id="det-meta"></p>
+      <p class="det__texto" id="det-texto"></p>
+    </div>
+  </div>
+  <div class="det__galeria" id="det-galeria"></div>
+  <section class="ficha"><h2>Ficha técnica</h2><dl id="det-ficha"></dl></section>
+  <footer class="rodape"><span>© 2026 Shylton Mavie</span></footer>
+</section>
+
+<!-- Atividades -->
+<section class="view" id="v-atividades" data-view="atividades" hidden>
+  <header class="barra">
+    <a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, início"><svg class="barra__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="barra__nome">Shylton Mavie</span></a>
+    <button type="button" class="menu-btn" data-menu aria-label="Menu" aria-expanded="false" aria-controls="menu"><svg class="menu-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6.5h18M3 12h18M3 17.5h18"/></svg></button>
+  </header>
+  <h1 class="pag__titulo">Atividades</h1>
+  <p class="pag__intro">Produzir um ambiente é escolher o que fica à vista: objetos, livros, plantas, tecidos e a ordem em que tudo aparece.</p>
+  <ol class="ativ">
+    <li class="ativ__item">
+      <span class="ativ__num" aria-hidden="true">01</span>
+      <h2 class="ativ__tit">Fotografia</h2>
+      <p class="ativ__txt">Preparação do ambiente para as fotos do projeto: escolha e locação de objetos, arranjos, livros e tecidos, e montagem no dia da foto.</p>
+    </li>
+    <li class="ativ__item">
+      <span class="ativ__num" aria-hidden="true">02</span>
+      <h2 class="ativ__tit">Mostras</h2>
+      <p class="ativ__txt">Ambientação de espaços em mostras de decoração, como a CASACOR, da curadoria das peças à montagem final.</p>
+    </li>
+    <li class="ativ__item">
+      <span class="ativ__num" aria-hidden="true">03</span>
+      <h2 class="ativ__tit">Marcas e lojas</h2>
+      <p class="ativ__txt">Showrooms, lojas e estandes de eventos, como os espaços para Tintas Coral, Bracci Metais e Full House Decoração.</p>
+    </li>
+    <li class="ativ__item">
+      <span class="ativ__num" aria-hidden="true">04</span>
+      <h2 class="ativ__tit">Áreas privativas e comuns</h2>
+      <p class="ativ__txt">Ambientação de unidades e áreas comuns de empreendimentos, como apartamentos decorados, halls e espaços de convivência.</p>
+    </li>
+  </ol>
+  <footer class="rodape"><span>© 2026 Shylton Mavie</span></footer>
+</section>
+
+<!-- Sobre -->
+<section class="view" id="v-sobre" data-view="sobre" hidden>
+  <header class="barra">
+    <a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, início"><svg class="barra__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="barra__nome">Shylton Mavie</span></a>
+    <button type="button" class="menu-btn" data-menu aria-label="Menu" aria-expanded="false" aria-controls="menu"><svg class="menu-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6.5h18M3 12h18M3 17.5h18"/></svg></button>
+  </header>
+  <h1 class="pag__titulo">Sobre</h1>
+  <div class="cols sobre">
+    <figure class="sobre__foto"><img src="img/shylton.jpg" alt="Shylton Mavie, de costas, numa sala com sofá bege, mesa de madeira e quadros na parede" width="1000" height="1210" decoding="async"></figure>
+    <div class="corpo">
+      <p class="grande">Shylton Mavie é arquiteto, urbanista e produtor de ambientes. Cuida da parte do projeto que se vê na foto e se sente ao entrar: objetos, livros, plantas, tecidos e a ordem em que tudo aparece.</p>
+      <p class="grande">Desde 2023 produz e assiste produções para mostras como a CASACOR São Paulo e a CASACOR Santa Catarina, para escritórios de arquitetura e para marcas como Tintas Coral e Bracci Metais.</p>
+      <p class="grande">Trabalha entre São Paulo e Florianópolis, ao lado de escritórios como Estúdio Dutra, Beatriz Zeglin, Studio H.A, Altera Arquitetura e Triart Arquitetura, e da produtora Kika Mattos.</p>
+    </div>
+  </div>
+  <footer class="rodape"><span>© 2026 Shylton Mavie</span></footer>
+</section>
+
+<!-- Contato -->
+<section class="view" id="v-contato" data-view="contato" hidden>
+  <header class="barra">
+    <a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, início"><svg class="barra__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="barra__nome">Shylton Mavie</span></a>
+    <button type="button" class="menu-btn" data-menu aria-label="Menu" aria-expanded="false" aria-controls="menu"><svg class="menu-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6.5h18M3 12h18M3 17.5h18"/></svg></button>
+  </header>
+  <h1 class="pag__titulo">Contato</h1>
+  <div class="contato">
+    <form class="contato__form" id="form-contato" novalidate>
+      <label class="cx" for="ct-nome">Nome<input id="ct-nome" type="text" autocomplete="given-name" required></label>
+      <label class="cx" for="ct-sobrenome">Sobrenome<input id="ct-sobrenome" type="text" autocomplete="family-name"></label>
+      <label class="cx" for="ct-email">Email<input id="ct-email" type="email" autocomplete="email" required></label>
+      <label class="cx" for="ct-tel">Telefone<span class="cx__tel"><svg class="cx__pais" viewBox="0 0 20 14" role="img" aria-label="Brasil, +55"><rect width="20" height="14" fill="#229E45"/><path d="M10 1.6 18.2 7 10 12.4 1.8 7z" fill="#F8E509"/><circle cx="10" cy="7" r="3.2" fill="#2B49A3"/></svg><input id="ct-tel" type="tel" autocomplete="tel-national" inputmode="tel"></span></label>
+      <label class="cx" for="ct-msg">Mensagem<textarea id="ct-msg" rows="4" required></textarea></label>
+      <button type="submit" class="enviar">Enviar</button>
+      <p class="status" id="ct-status" role="status"></p>
+    </form>
+    <a class="btn-wa" href="https://wa.me/5548996210587?text=Ol%C3%A1%2C%20Shylton!%20Vim%20pelo%20site." target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5a8.5 8.5 0 0 0-7.3 12.8L3.5 20.5l4.3-1.1A8.5 8.5 0 1 0 12 3.5z"/><path d="M9.2 8.2c.2-.4.4-.4.7-.4h.5c.2 0 .4 0 .5.4l.7 1.6c.1.2 0 .4-.1.5l-.5.6c-.1.1-.1.3 0 .4a6 6 0 0 0 2.7 2.4c.2.1.3.1.4 0l.6-.7c.1-.2.3-.2.5-.1l1.6.8c.2.1.3.2.3.4 0 .5-.2 1.1-.6 1.4-.5.4-1.3.6-2.2.3a9 9 0 0 1-4.7-4c-.6-1-.8-1.9-.5-2.6z"/></svg>Fale comigo no WhatsApp</a>
+    <a class="insta" href="https://www.instagram.com/shyltu/" target="_blank" rel="noopener" aria-label="Instagram de Shylton Mavie, @shyltu"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r=".6" fill="currentColor"/></svg></a>
+  </div>
+  <footer class="rodape"><span>© 2026 Shylton Mavie</span></footer>
+</section>
+
+<!-- Menu: lista suspensa sob os três traços -->
+<div class="menu" id="menu" hidden>
+  <nav aria-label="Menu">
+    <a href="#inicio">Início</a>
+    <a href="#producoes">Produções</a>
+    <a href="#atividades">Atividades</a>
+    <a href="#sobre">Sobre</a>
+    <a href="#contato">Contato</a>
+    <a class="menu__adm" href="#adm">Área restrita</a>
+  </nav>
+</div>
+
+<div id="sis" class="sis" hidden></div>
+
+<script src="sis-base.js"></script>
+<script>
+(function(){
+  var PROJETOS=[
+    {slug:"apartamento-mfm",nome:"Apartamento MFM",cat:"Residencial",local:"São Paulo, Brasil",ano:"",evento:"",projeto:"Estúdio Dutra",papel:"producao",producao:"Shylton Mavie e André Dutra",fotos:"Renato Navarro",capa:"g06-1",galeria:["g06-1","g06-2","g06-3","g06-4","g07-1","g07-2","g07-3","g07-4"],texto:"Produção do apartamento MFM, em São Paulo, com projeto do Estúdio Dutra. Marcenaria em madeira, prateleiras abertas e objetos escolhidos peça por peça para as fotos."},
+    {slug:"casa-horizonte",nome:"Casa Horizonte",cat:"Mostra",local:"Santa Catarina, Brasil",ano:"2023",evento:"CASACOR Santa Catarina 2023",projeto:"Beatriz Zeglin e Dimas Construções",papel:"producao",producao:"Shylton Mavie",fotos:"Lio Simas",capa:"g09-3",galeria:["g09-1","g09-2","g09-3","g10-1","g10-2","g10-3"],texto:"Ambiente de Beatriz Zeglin e Dimas Construções na CASACOR Santa Catarina 2023. Estante em grade preta, livros, cerâmicas e uma poltrona de balanço compõem a produção."},
+    {slug:"espaco-raizes",nome:"Espaço Raízes",cat:"Mostra",local:"Santa Catarina, Brasil",ano:"2024",evento:"CASACOR Santa Catarina 2024",projeto:"Terraço Paisagismo",papel:"producao",producao:"Shylton Mavie",fotos:"Lucas Reitz",capa:"g12-1",galeria:["g12-1","g12-2","g12-3"],texto:"Terraço da Terraço Paisagismo na CASACOR Santa Catarina 2024, com vasos de barro, folhagens e mobiliário para área externa."},
+    {slug:"casa-floripa",nome:"Casa Floripa",cat:"Mostra",local:"Santa Catarina, Brasil",ano:"2024",evento:"CASACOR Santa Catarina 2024",projeto:"Beatriz Zeglin e Dimas Construções",papel:"producao",producao:"Shylton Mavie",fotos:"Lio Simas",capa:"g14-1",galeria:["g14-1","g14-2","g14-3","g15-1","g15-2","g15-3"],texto:"Casa de Beatriz Zeglin e Dimas Construções na CASACOR Santa Catarina 2024. Estar, bar e varanda se abrem para a vegetação ao redor."},
+    {slug:"po-e-gloria",nome:"Pó e Glória",cat:"Mostra",local:"São Paulo, Brasil",ano:"2023",evento:"CASACOR São Paulo 2023",projeto:"Studio H.A",papel:"assistente",producao:"Kika Mattos",fotos:"Renato Navarro",capa:"g18-1",galeria:["g18-1","g17-1","g17-2","g17-3","g17-4","g18-2","g18-3","g18-4"],texto:"Ambiente do Studio H.A na CASACOR São Paulo 2023. Shylton atuou como assistente de produção de Kika Mattos."},
+    {slug:"restaurante-badebec",nome:"Restaurante Badebec",cat:"Mostra",local:"São Paulo, Brasil",ano:"2023",evento:"CASACOR São Paulo 2023",projeto:"Altera Arquitetura",papel:"assistente",producao:"Kika Mattos",fotos:"André Mortatti",capa:"g21-1",galeria:["g21-1","g20-1","g20-2","g20-3","g20-4","g21-2","g21-3","g21-4"],texto:"Restaurante Badebec, da Altera Arquitetura, na CASACOR São Paulo 2023. Shylton atuou como assistente de produção de Kika Mattos."},
+    {slug:"apartamento-nj",nome:"Apartamento NJ",cat:"Residencial",local:"São Paulo, Brasil",ano:"",evento:"",projeto:"Triart Arquitetura",papel:"assistente",producao:"Kika Mattos",fotos:"Renato Navarro",capa:"g23-1",galeria:["g23-1","g23-2","g23-3","g23-4"],texto:"Apartamento NJ, em São Paulo, com projeto da Triart Arquitetura. Shylton atuou como assistente de produção de Kika Mattos."},
+    {slug:"bracci-metais",nome:"Bracci Metais",cat:"Comercial",local:"São Paulo, Brasil",ano:"",evento:"",projeto:"Bracci Metais",papel:"assistente",producao:"Kika Mattos",fotos:"Gabriela Daltro",capa:"g25-1",galeria:["g25-1","g25-2","g25-3","g25-4"],texto:"Showroom da Bracci Metais na Alameda Gabriel Monteiro, em São Paulo. Shylton atuou como assistente de produção de Kika Mattos."},
+    {slug:"full-house",nome:"Full House Decoração",cat:"Comercial",local:"São Paulo, Brasil",ano:"",evento:"",projeto:"Full House Decoração",papel:"assistente",producao:"Kika Mattos",fotos:"Autor desconhecido",capa:"g27-1",galeria:["g27-1","g27-2","g27-3"],texto:"Loja da Full House Decoração nos Jardins, em São Paulo. Shylton atuou como assistente de produção de Kika Mattos."},
+    {slug:"abd-conad",nome:"Tintas Coral",cat:"Evento",local:"São Paulo, Brasil",ano:"2023",evento:"ABD Conad SP 2023",projeto:"Tintas Coral",papel:"producao",producao:"Shylton Mavie, Nataly Margonato e Kika Mattos",fotos:"Arquivo pessoal",capa:"g30-1",galeria:["g30-1","g29-1","g29-2","g29-3","g29-4","g30-2","g30-3","g30-4"],texto:"Espaço da Tintas Coral no ABD Conad 2023, em São Paulo, produzido por Shylton com Nataly Margonato e Kika Mattos."}
+  ];
+  /* Início: produção e foto horizontal de cada tela */
+  var DESTAQUES=[["apartamento-mfm","g06-1"],["casa-floripa","g14-1"],["restaurante-badebec","g21-1"],["po-e-gloria","g18-1"],["casa-horizonte","g09-1"],["espaco-raizes","g12-1"],["apartamento-nj","g23-1"],["abd-conad","g30-1"]];
+  var CATS=["Todos","Residencial","Mostra","Comercial","Evento"];
+  function img(id){return "img/"+id+".webp";}
+  function el(tag,attrs,html){var e=document.createElement(tag);for(var k in attrs){e.setAttribute(k,attrs[k]);}if(html!=null)e.innerHTML=html;return e;}
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+  function porSlug(s){for(var i=0;i<PROJETOS.length;i++){if(PROJETOS[i].slug===s)return PROJETOS[i];}return null;}
+  function etiqueta(p){return p.evento||p.cat;}
+
+  // Início: uma foto por tela; a rolagem troca a foto
+  var vInicio=document.getElementById("v-inicio"),palco=document.getElementById("palco-fotos"),passos=document.getElementById("palco-passos");
+  var telas=[],atual=-1;
+  DESTAQUES.forEach(function(d,i){
+    var p=porSlug(d[0]);
+    var f=el("div",{"class":"palco__foto","aria-hidden":"true"});
+    f.innerHTML='<img '+(i<2?'src':'data-src')+'="'+img(d[1])+'" alt="'+esc(p.nome)+'" decoding="async"'+(i===0?' fetchpriority="high"':'')+'>';
+    palco.appendChild(f);telas.push(f);
+    passos.appendChild(el("div",{"class":"passo"}));
+  });
+  function carregar(i){var im=telas[i]&&telas[i].querySelector("img[data-src]");if(im){im.src=im.getAttribute("data-src");im.removeAttribute("data-src");}}
+  function ativar(i){
+    if(i===atual)return;atual=i;
+    telas.forEach(function(f,k){f.classList.toggle("ativa",k===i);f.setAttribute("aria-hidden",k===i?"false":"true");});    carregar(i);carregar(i+1);
+  }
+  function aoRolar(){
+    if(vInicio.hidden)return;
+    var h=passos.firstChild.offsetHeight||window.innerHeight;
+    ativar(Math.max(0,Math.min(telas.length-1,Math.round(window.scrollY/h))));
+  }
+  window.addEventListener("scroll",aoRolar,{passive:true});
+  window.addEventListener("resize",aoRolar);
+  vInicio.style.setProperty("--n",telas.length);
+  ativar(0);
+
+  // Produções: filtro por tipo
+  var estado={cat:"Todos"};
+  var filtros=document.getElementById("filtros");
+  CATS.forEach(function(c){
+    var b=el("button",{type:"button","aria-pressed":c==="Todos"?"true":"false","data-cat":c},esc(c));
+    b.addEventListener("click",function(){estado.cat=c;[].forEach.call(filtros.children,function(x){x.setAttribute("aria-pressed",x.getAttribute("data-cat")===c?"true":"false");});desenharProjetos();});
+    filtros.appendChild(b);
+  });
+  function desenharProjetos(){
+    var itens=PROJETOS.filter(function(p){return estado.cat==="Todos"||p.cat===estado.cat;});
+    var grade=document.getElementById("grade");
+    grade.innerHTML="";
+    if(!itens.length){grade.appendChild(el("p",{"class":"vazio"},"Nenhuma produção nesta categoria."));return;}
+    itens.forEach(function(p){
+      var c=el("div",{"class":"card"});
+      c.innerHTML='<a href="#'+p.slug+'" class="card__img"><img src="'+img(p.capa)+'" alt="'+esc(p.nome)+'" loading="lazy" decoding="async"></a><a href="#'+p.slug+'" class="card__leg"><b>'+esc(p.nome)+'</b><span>'+esc(p.local)+'</span></a>';
+      grade.appendChild(c);
+    });
+  }
+
+  // Projeto
+  function credito(p){
+    if(p.papel==="assistente")return "Produção de "+p.producao+", com assistência de Shylton Mavie";
+    return p.producao;
+  }
+  function desenharProjeto(p){
+    var capa=document.getElementById("det-capa");capa.src=img(p.capa);capa.alt=p.nome;
+    document.getElementById("det-nome").textContent=p.nome;
+    document.getElementById("det-meta").innerHTML='<span>'+esc(p.ano||p.projeto)+'</span><span>'+esc(p.local)+'</span><span>'+esc(p.evento||p.cat)+'</span>';
+    document.getElementById("det-texto").textContent=p.texto;
+    var gal=document.getElementById("det-galeria");gal.innerHTML="";
+    p.galeria.filter(function(g){return g!==p.capa;}).forEach(function(g,i){
+      var im=el("img",{src:img(g),alt:p.nome+", foto "+(i+2)+(p.fotos?" de "+p.fotos:""),loading:"lazy",decoding:"async"});
+      im.addEventListener("load",function(){var r=(im.naturalWidth/im.naturalHeight)||1.3;im.style.flex=r.toFixed(3)+" 1 calc(var(--alt) * "+r.toFixed(3)+")";});
+      gal.appendChild(im);
+    });
+    var campos=[["Projeto",p.projeto],["Produção",credito(p)],["Fotos",p.fotos],["Local",p.local],["Categoria",p.cat]];
+    if(p.evento)campos.push(["Mostra ou evento",p.evento]);
+    document.getElementById("det-ficha").innerHTML=campos.map(function(c){return '<div><dt>'+esc(c[0])+'</dt><dd>'+esc(c[1])+'</dd></div>';}).join("");
+  }
+
+  // Menu: lista suspensa sob os três traços. Abre ao passar o mouse (fecha ao sair)
+  // e ao clicar ou tocar (fica aberta até clicar de novo, fora dela ou apertar Esc).
+  var menu=document.getElementById("menu"),menuBtn=null,menuFixo=false,menuTimer=0;
+  function posMenu(){
+    var r=menuBtn.getBoundingClientRect();
+    if(r.bottom<=0){fecharMenu();return;}
+    menu.style.top=Math.round(r.bottom)+"px";
+    menu.style.right=Math.max(0,Math.round(document.documentElement.clientWidth-r.right-6))+"px"; /* texto alinhado à borda dos traços */
+  }
+  function abrirMenu(btn,fixo){
+    clearTimeout(menuTimer);
+    if(menuBtn&&menuBtn!==btn)menuBtn.setAttribute("aria-expanded","false");
+    menuBtn=btn;menuFixo=menuFixo||fixo;
+    menu.hidden=false;posMenu();btn.setAttribute("aria-expanded","true");
+  }
+  function fecharMenu(foco){
+    clearTimeout(menuTimer);
+    if(menu.hidden)return;
+    menu.hidden=true;menuFixo=false;
+    if(menuBtn){menuBtn.setAttribute("aria-expanded","false");if(foco===true)menuBtn.focus();}
+  }
+  function fecharDepois(){if(!menu.hidden&&!menuFixo){clearTimeout(menuTimer);menuTimer=setTimeout(fecharMenu,250);}}
+  document.addEventListener("click",function(e){
+    var b=e.target.closest&&e.target.closest("[data-menu]");
+    if(b){
+      if(!menu.hidden&&menuFixo&&menuBtn===b){fecharMenu();return;}
+      abrirMenu(b,true);
+      if(e.detail===0){var p=menu.querySelector("a");if(p)p.focus();} /* aberto pelo teclado: foco no primeiro item */
+      return;
+    }
+    if(menu.hidden)return;
+    if(!menu.contains(e.target)||e.target.closest("a"))fecharMenu();
+  });
+  document.addEventListener("pointerover",function(e){
+    if(e.pointerType!=="mouse")return;
+    var b=e.target.closest&&e.target.closest("[data-menu]");
+    if(b){abrirMenu(b,false);return;}
+    if(menu.contains(e.target)){clearTimeout(menuTimer);return;}
+    fecharDepois();
+  });
+  document.documentElement.addEventListener("mouseleave",fecharDepois);
+  menu.addEventListener("focusout",function(e){if(!menu.contains(e.relatedTarget)&&e.relatedTarget!==menuBtn)fecharMenu();});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape"&&!menu.hidden)fecharMenu(true);});
+  addEventListener("scroll",function(){if(!menu.hidden)posMenu();},{passive:true});
+  addEventListener("resize",function(){if(!menu.hidden)posMenu();});
+
+  // Rotas
+  var VIEWS=["inicio","producoes","atividades","sobre","contato"];
+  var TITULOS={inicio:"",producoes:"Produções",atividades:"Atividades",sobre:"Sobre",contato:"Contato"};
+  function titulo(t){document.title=t?t+" · Shylton Mavie":"Shylton Mavie · Arquiteto e produtor de ambientes";}
+  function mostrar(nome){
+    if(TITULOS[nome]!=null)titulo(TITULOS[nome]);
+    [].forEach.call(document.querySelectorAll(".view"),function(v){v.hidden=v.getAttribute("data-view")!==nome;});
+    [].forEach.call(menu.querySelectorAll("nav a"),function(a){if(a.getAttribute("href")==="#"+nome){a.setAttribute("aria-current","page");}else{a.removeAttribute("aria-current");}});
+  }
+  function rota(){
+    var h=(location.hash||"").slice(1)||"inicio";
+    if(h==="projetos"){location.replace("#producoes");return;}
+    if(h==="servicos"){location.replace("#atividades");return;}
+    if(h==="colaboracoes"){location.replace("#producoes");return;} /* endereço antigo */
+    fecharMenu();
+    if(window.SIS&&SIS.trata(h)){
+      [].forEach.call(document.querySelectorAll(".view"),function(v){v.hidden=true;});
+      titulo(/^cadastro-/.test(h)?"Cadastro":"Área restrita");SIS.mostrar();window.scrollTo(0,0);return;
+    }
+    if(window.SIS)SIS.esconder();
+    if(VIEWS.indexOf(h)>=0){mostrar(h);if(h==="producoes")desenharProjetos();}
+    else{var p=porSlug(h);if(p){desenharProjeto(p);mostrar("projeto");titulo(p.nome);}else{mostrar("inicio");}}
+    window.scrollTo(0,0);aoRolar();
+  }
+  window.addEventListener("hashchange",rota);
+  rota();
+
+  // Contato: sem servidor, o envio abre o e-mail do visitante com a mensagem pronta para o Shylton
+  var EMAIL_CONTATO="shyltonmattosvieira@gmail.com";
+  var formC=document.getElementById("form-contato"),stC=document.getElementById("ct-status");
+  formC.addEventListener("input",function(e){if(e.target.getAttribute("aria-invalid")==="true"&&e.target.value.trim())e.target.setAttribute("aria-invalid","false");});
+  formC.addEventListener("submit",function(e){
+    e.preventDefault();
+    var v=function(id){return document.getElementById(id).value.trim();};
+    var d={nome:v("ct-nome"),sobrenome:v("ct-sobrenome"),email:v("ct-email"),tel:v("ct-tel"),msg:v("ct-msg")};
+    var erro=null,campo=null;
+    [].forEach.call(formC.querySelectorAll("[aria-invalid]"),function(x){x.setAttribute("aria-invalid","false");});
+    if(!d.nome){erro="Preencha seu nome.";campo="ct-nome";}
+    else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)){erro="Confira o email: ele precisa ter o formato nome@dominio.com.";campo="ct-email";}
+    else if(!d.msg){erro="Escreva sua mensagem.";campo="ct-msg";}
+    if(erro){stC.className="status erro";stC.textContent=erro;var c=document.getElementById(campo);c.setAttribute("aria-invalid","true");c.focus();return;}
+    var nome=(d.nome+" "+d.sobrenome).trim();
+    var corpo=d.msg+"\n\n"+nome+"\n"+d.email+(d.tel?"\n+55 "+d.tel:"");
+    var a=document.createElement("a");
+    a.href="mailto:"+EMAIL_CONTATO+"?subject="+encodeURIComponent("Contato pelo site · "+nome)+"&body="+encodeURIComponent(corpo);
+    a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();
+    stC.className="status ok";
+    stC.textContent="Abrimos seu email com a mensagem pronta. É só enviar. Se nada abriu, escreva para "+EMAIL_CONTATO+".";
+  });
+})();
+</script>
+</body>
+</html>
