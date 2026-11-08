@@ -84,7 +84,7 @@
   <!-- Parceiros: logos em grafite com fundo transparente; --h ajusta a altura de cada um para o peso visual ficar parecido -->
   <section class="marcas" aria-labelledby="marcas-tit">
     <h2 class="linha__rot" id="marcas-tit">Marcas que cruzaram meu caminho</h2>
-    <ul class="marcas__lista">
+    <div class="marcas__faixa"><ul class="marcas__lista">
       <li class="marca" style="--h:46px"><img src="img/marcas/casacor.png" alt="CASACOR Santa Catarina" width="311" height="120" loading="lazy"></li>
       <li class="marca" style="--h:40px"><img src="img/marcas/casacor-sp.png" alt="CASACOR São Paulo" width="145" height="49" loading="lazy"></li>
       <li class="marca" style="--h:46px"><img src="img/marcas/tidelli.png" alt="Tidelli Outdoor Living" width="142" height="63" loading="lazy"></li>
@@ -97,6 +97,8 @@
       <li class="marca" style="--h:20px"><img src="img/marcas/tetto.png" alt="Tetto" width="238" height="39" loading="lazy"></li>
       <li class="marca" style="--h:40px"><img src="img/marcas/terraco.png" alt="Terraço Paisagismo" width="136" height="59" loading="lazy"></li>
       <li class="marca" style="--h:36px"><img src="img/marcas/autoria.png" alt="Autoria Design" width="132" height="43" loading="lazy"></li>
+    </ul></div>
+    <div class="marcas__faixa"><ul class="marcas__lista">
       <li class="marca" style="--h:18px"><img src="img/marcas/beatriz-zeglin.png" alt="Beatriz Zeglin" width="388" height="47" loading="lazy"></li>
       <li class="marca" style="--h:22px"><img src="img/marcas/mariana-maisonnave.png" alt="Mariana Maisonnave Arquitetura e Interiores" width="361" height="46" loading="lazy"></li>
       <li class="marca" style="--h:24px"><img src="img/marcas/manu-pagliosa.png" alt="Manu Pagliosa" width="636" height="120" loading="lazy"></li>
@@ -108,7 +110,7 @@
       <li class="marca" style="--h:52px"><img src="img/marcas/moveis-ce.png" alt="Móveis Cé" width="126" height="120" loading="lazy"></li>
       <li class="marca" style="--h:36px"><img src="img/marcas/micael-carminatti.png" alt="Studio Micael Carminatti" width="455" height="103" loading="lazy"></li>
       <li class="marca" style="--h:58px"><img src="img/marcas/jacobus-buzzi.png" alt="Jacobus Buzzi Arquitetos" width="224" height="120" loading="lazy"></li>
-    </ul>
+    </ul></div>
   </section>
   <footer class="rodape"><span>© 2026 Shylton Mavie</span></footer>
 </section>
@@ -237,6 +239,17 @@
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
   function porSlug(s){for(var i=0;i<PROJETOS.length;i++){if(PROJETOS[i].slug===s)return PROJETOS[i];}return null;}
   function etiqueta(p){return p.evento||p.cat;}
+
+  // Marcas: duas linhas correndo para a esquerda a 40px/s; a cópia (oculta para leitores de tela) fecha o laço sem emenda
+  (function(){
+    if(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+    var VEL=40;
+    var ro=window.ResizeObserver?new ResizeObserver(function(es){es.forEach(function(e){var w=e.target.scrollWidth/2;if(w)e.target.style.setProperty("--dur",(w/VEL).toFixed(1)+"s");});}):null;
+    [].forEach.call(document.querySelectorAll(".marcas__lista"),function(l){
+      [].slice.call(l.children).forEach(function(li){var c=li.cloneNode(true);c.setAttribute("aria-hidden","true");l.appendChild(c);});
+      l.classList.add("anda");if(ro)ro.observe(l);
+    });
+  })();
 
   // Início: uma foto por tela; a rolagem troca a foto
   var vInicio=document.getElementById("v-inicio"),palco=document.getElementById("palco-fotos"),passos=document.getElementById("palco-passos");

@@ -154,8 +154,13 @@ html:has(#v-inicio:not([hidden])){scroll-snap-type:y mandatory}
 .grade{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s-24) var(--col);padding:var(--s-8) var(--g-r) var(--s-64) var(--g-l)}
 /* Parceiros ao final de Produções: logos em cinza, mesma altura, centralizados */
 .marcas{display:flex;flex-direction:column;align-items:center;gap:var(--s-24);text-align:center;margin-inline:var(--g-l) var(--g-r);padding-block:var(--s-32) var(--s-64);border-top:1px solid var(--linha)}
-.marcas__lista{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:var(--s-24) var(--s-64)}
-.marca{display:flex;align-items:center;justify-content:center;gap:var(--s-12);min-height:48px;color:var(--tinta-2)}
+/* Duas linhas correndo para a esquerda; bordas esmaecidas; para ao passar o mouse. Espaço por margem (não gap) para o laço de -50% não dar salto */
+.marcas__faixa{width:100%;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--s-48),#000 calc(100% - var(--s-48)),transparent);mask-image:linear-gradient(90deg,transparent,#000 var(--s-48),#000 calc(100% - var(--s-48)),transparent)}
+.marcas__lista{display:flex;align-items:center;width:max-content}
+.marcas__lista.anda{animation:corre var(--dur,60s) linear infinite}
+.marcas__faixa:hover .marcas__lista{animation-play-state:paused}
+@keyframes corre{to{transform:translateX(-50%)}}
+.marca{display:flex;align-items:center;justify-content:center;gap:var(--s-12);min-height:48px;margin-right:var(--s-64);color:var(--tinta-2)}
 .marca img{display:block;width:auto;height:var(--h,40px);opacity:.62} /* grafite a 62% ≈ tom do texto secundário */
 .marca span{font-size:var(--t-leg);font-weight:600;line-height:1.3;text-align:center}
 .card{display:flex;flex-direction:column;gap:var(--s-8);position:relative;min-width:0}
@@ -295,7 +300,7 @@ html:has(#v-inicio:not([hidden])){scroll-snap-type:y mandatory}
   .cols,.linha,.rodape{grid-template-columns:minmax(0,1fr)}
   .pag__titulo{padding-block:var(--s-24) var(--s-32)}
   .pag__filtros{margin-top:calc(var(--s-12) * -1)}
-  .marcas__lista{gap:var(--s-16) var(--s-32)}
+  .marca{margin-right:var(--s-32)}
   .marca img{height:calc(var(--h,40px) * .85)}
   .ativ__item{grid-template-columns:var(--s-48) minmax(0,1fr);padding-block:var(--s-16) var(--s-24)}
   .ativ__txt{grid-column:2}
@@ -314,4 +319,5 @@ html:has(#v-inicio:not([hidden])){scroll-snap-type:y mandatory}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition:none !important;animation:none !important}
+  .marcas__faixa{overflow-x:auto} /* sem movimento: as linhas rolam com o dedo ou o mouse */
 }
