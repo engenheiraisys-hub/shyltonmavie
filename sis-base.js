@@ -536,6 +536,21 @@ function ligarCasca(raiz){
 
 /* Tela de entrada: "entrar" (e-mail e senha) ou "criar" (primeiro acesso / nova senha) */
 /* Domínio próprio (Supabase): entrar · primeiro acesso · esqueci a senha · nova senha · conta sem liberação */
+/* Campo de senha com botão para mostrar/ocultar o que foi digitado (o botão fica fora do label, como pede o HTML) */
+var OLHO='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+var OLHO_FECHADO='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg>';
+function campoSenha(rotulo,id,auto){
+  return '<div class="f"><label for="'+id+'">'+rotulo+'</label><div class="senha"><input type="password" id="'+id+'" autocomplete="'+auto+'" required>'+
+    '<button type="button" class="senha__ver" data-ver-senha="'+id+'" aria-label="Mostrar senha" aria-pressed="false">'+OLHO+'</button></div></div>';
+}
+document.addEventListener("click",function(e){
+  var b=e.target.closest&&e.target.closest("[data-ver-senha]");if(!b)return;
+  var i=document.getElementById(b.getAttribute("data-ver-senha"));if(!i)return;
+  var ver=i.type==="password";
+  i.type=ver?"text":"password";
+  b.setAttribute("aria-pressed",ver?"true":"false");b.setAttribute("aria-label",ver?"Ocultar senha":"Mostrar senha");
+  b.innerHTML=ver?OLHO_FECHADO:OLHO;i.focus();
+});
 function msgErroSupa(e){
   var c=(e&&e.code)||"",m=String(e&&e.message||"");
   if(c==="invalid_credentials"||/invalid login/i.test(m))return "E-mail ou senha incorretos.";
@@ -569,8 +584,8 @@ function telaSupa(raiz,modo){
   raiz.innerHTML=topo+'<p>'+intro+'</p>'+aviso+
     '<form class="entrada__caixa" id="lg-form" novalidate>'+
       (modo!=="nova"?'<label class="f">E-mail<input type="email" id="lg-email" autocomplete="'+(modo==="entrar"?"username":"email")+'" required></label>':'')+
-      (modo!=="esqueci"?'<label class="f">'+(modo==="nova"?"Nova senha":"Senha")+(duas?' <small>Mínimo de 8 caracteres</small>':'')+'<input type="password" id="lg-senha" autocomplete="'+(duas?"new-password":"current-password")+'" required></label>':'')+
-      (duas?'<label class="f">Confirmar senha<input type="password" id="lg-senha2" autocomplete="new-password" required></label>':'')+
+      (modo!=="esqueci"?campoSenha((modo==="nova"?"Nova senha":"Senha")+(duas?' <small>Mínimo de 8 caracteres</small>':''),"lg-senha",duas?"new-password":"current-password"):'')+
+      (duas?campoSenha("Confirmar senha","lg-senha2","new-password"):'')+
       '<div class="acoes"><button type="submit" class="btn btn--escuro">'+botao+'</button>'+links+'</div>'+
       '<p class="status" id="lg-status" role="status"></p>'+
     '</form>'+fim;
@@ -631,8 +646,8 @@ function telaEntrada(raiz,modoPedido){
     raiz.innerHTML=topo+'<p>'+intro+'</p>'+
       '<form class="entrada__caixa" id="lg-form" novalidate>'+
         '<label class="f">E-mail<input type="email" id="lg-email" autocomplete="'+(criar?"email":"username")+'" required></label>'+
-        '<label class="f">Senha'+(criar?' <small>Mínimo de 8 caracteres</small>':'')+'<input type="password" id="lg-senha" autocomplete="'+(criar?"new-password":"current-password")+'" required></label>'+
-        (criar?'<label class="f">Confirmar senha<input type="password" id="lg-senha2" autocomplete="new-password" required></label>':'')+
+        campoSenha('Senha'+(criar?' <small>Mínimo de 8 caracteres</small>':''),"lg-senha",criar?"new-password":"current-password")+
+        (criar?campoSenha("Confirmar senha","lg-senha2","new-password"):'')+
         '<div class="acoes"><button type="submit" class="btn btn--escuro">'+(criar?"Criar senha e entrar":"Entrar")+'</button>'+troca+'</div>'+
         '<p class="status" id="lg-status" role="status"></p>'+
       '</form>'+

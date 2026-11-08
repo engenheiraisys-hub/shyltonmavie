@@ -6,7 +6,7 @@
 <title>Shylton Mavie Â· Arquiteto e produtor de ambientes</title>
 <meta name="description" content="Shylton Mavie, arquiteto, urbanista e produtor de ambientes em FlorianÃ³polis e SÃ£o Paulo. ProduÃ§Ã£o para fotografia, mostras e clientes finais.">
 <link rel="canonical" href="https://shyltonmavie.com/">
-<meta name="theme-color" content="#F6F4F0">
+<meta name="theme-color" content="#FFFFFF">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="pt_BR">
 <meta property="og:site_name" content="Shylton Mavie">
@@ -115,21 +115,13 @@
 
 <!-- Projeto -->
 <section class="view" id="v-projeto" data-view="projeto" hidden>
-  <div class="det__hero">
-    <img id="det-capa" src="" alt="">
-    <header class="barra barra--clara">
-      <a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, início"><svg class="barra__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="barra__nome">Shylton Mavie</span></a>
-      <button type="button" class="menu-btn" data-menu aria-label="Menu" aria-expanded="false" aria-controls="menu"><svg class="menu-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6.5h18M3 12h18M3 17.5h18"/></svg></button>
-    </header>
-    <div class="det__centro">
-      <a href="#producoes" class="det__volta">Produções</a>
-      <h1 class="det__nome" id="det-nome"></h1>
-      <p class="det__meta" id="det-meta"></p>
-      <p class="det__texto" id="det-texto"></p>
-    </div>
-  </div>
+  <header class="barra">
+    <a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, início"><svg class="barra__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="barra__nome">Shylton Mavie</span></a>
+    <button type="button" class="menu-btn" data-menu aria-label="Menu" aria-expanded="false" aria-controls="menu"><svg class="menu-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6.5h18M3 12h18M3 17.5h18"/></svg></button>
+  </header>
+  <div class="det__hero"><img id="det-capa" src="" alt=""></div>
   <div class="det__galeria" id="det-galeria"></div>
-  <section class="ficha"><h2>Ficha técnica</h2><dl id="det-ficha"></dl></section>
+  <section class="ficha" aria-label="Ficha técnica"><p class="ficha__rot">Ficha técnica</p><h1 class="ficha__nome" id="ficha-nome"></h1><dl id="det-ficha"></dl></section>
   <footer class="rodape"><span>© 2026 Shylton Mavie</span></footer>
 </section>
 
@@ -174,11 +166,11 @@
   </header>
   <h1 class="pag__titulo">Sobre</h1>
   <div class="cols sobre">
-    <figure class="sobre__foto"><img src="img/shylton.jpg" alt="Shylton Mavie, de costas, numa sala com sofá bege, mesa de madeira e quadros na parede" width="1000" height="1210" decoding="async"></figure>
+    <figure class="sobre__foto"><img src="img/shylton.jpg" alt="Shylton Mavie sentado num sofá bege, atrás de uma mesa de centro de madeira com garrafas, cerâmicas e flores" width="1600" height="1066" decoding="async"></figure>
     <div class="corpo">
-      <p class="grande">Shylton Mavie é arquiteto, urbanista e produtor de ambientes. Cuida da parte do projeto que se vê na foto e se sente ao entrar: objetos, livros, plantas, tecidos e a ordem em que tudo aparece.</p>
-      <p class="grande">Desde 2023 produz e assiste produções para mostras como a CASACOR São Paulo e a CASACOR Santa Catarina, para escritórios de arquitetura e para marcas como Tintas Coral e Bracci Metais.</p>
-      <p class="grande">Trabalha entre São Paulo e Florianópolis, ao lado de escritórios como Estúdio Dutra, Beatriz Zeglin, Studio H.A, Altera Arquitetura e Triart Arquitetura, e da produtora Kika Mattos.</p>
+      <p>Shylton Mavie é arquiteto, urbanista e produtor de ambientes. Cuida da parte do projeto que se vê na foto e se sente ao entrar: objetos, livros, plantas, tecidos e a ordem em que tudo aparece.</p>
+      <p>Desde 2023 produz e assiste produções para mostras como a CASACOR São Paulo e a CASACOR Santa Catarina, para escritórios de arquitetura e para marcas como Tintas Coral e Bracci Metais.</p>
+      <p>Trabalha entre São Paulo e Florianópolis, ao lado de escritórios como Estúdio Dutra, Beatriz Zeglin, Studio H.A, Altera Arquitetura e Triart Arquitetura, e da produtora Kika Mattos.</p>
     </div>
   </div>
   <footer class="rodape"><span>© 2026 Shylton Mavie</span></footer>
@@ -198,6 +190,7 @@
       <label class="cx" for="ct-email">Email<input id="ct-email" type="email" autocomplete="email" required></label>
       <label class="cx" for="ct-tel">Telefone<span class="cx__tel"><svg class="cx__pais" viewBox="0 0 20 14" role="img" aria-label="Brasil, +55"><rect width="20" height="14" fill="#229E45"/><path d="M10 1.6 18.2 7 10 12.4 1.8 7z" fill="#F8E509"/><circle cx="10" cy="7" r="3.2" fill="#2B49A3"/></svg><input id="ct-tel" type="tel" autocomplete="tel-national" inputmode="tel"></span></label>
       <label class="cx" for="ct-msg">Mensagem<textarea id="ct-msg" rows="4" required></textarea></label>
+      <input class="isca" id="ct-honey" type="text" name="_honey" tabindex="-1" autocomplete="off" aria-hidden="true">
       <button type="submit" class="enviar">Enviar</button>
       <p class="status" id="ct-status" role="status"></p>
     </form>
@@ -297,16 +290,14 @@
   }
   function desenharProjeto(p){
     var capa=document.getElementById("det-capa");capa.src=img(p.capa);capa.alt=p.nome;
-    document.getElementById("det-nome").textContent=p.nome;
-    document.getElementById("det-meta").innerHTML='<span>'+esc(p.ano||p.projeto)+'</span><span>'+esc(p.local)+'</span><span>'+esc(p.evento||p.cat)+'</span>';
-    document.getElementById("det-texto").textContent=p.texto;
+    document.getElementById("ficha-nome").textContent=p.nome;
     var gal=document.getElementById("det-galeria");gal.innerHTML="";
     p.galeria.filter(function(g){return g!==p.capa;}).forEach(function(g,i){
       var im=el("img",{src:img(g),alt:p.nome+", foto "+(i+2)+(p.fotos?" de "+p.fotos:""),loading:"lazy",decoding:"async"});
       im.addEventListener("load",function(){var r=(im.naturalWidth/im.naturalHeight)||1.3;im.style.flex=r.toFixed(3)+" 1 calc(var(--alt) * "+r.toFixed(3)+")";});
       gal.appendChild(im);
     });
-    var campos=[["Projeto",p.projeto],["Produção",credito(p)],["Fotos",p.fotos],["Local",p.local],["Categoria",p.cat]];
+    var campos=[["Produção",credito(p)],["Projeto",p.projeto],["Categoria",p.cat],["Fotos",p.fotos],["Local",p.local]];
     if(p.evento)campos.push(["Mostra ou evento",p.evento]);
     document.getElementById("det-ficha").innerHTML=campos.map(function(c){return '<div><dt>'+esc(c[0])+'</dt><dd>'+esc(c[1])+'</dd></div>';}).join("");
   }
@@ -384,8 +375,10 @@
   window.addEventListener("hashchange",rota);
   rota();
 
-  // Contato: sem servidor, o envio abre o e-mail do visitante com a mensagem pronta para o Shylton
+  // Contato: a mensagem vai direto para o e-mail do Shylton (administrador 2) pelo FormSubmit, sem abrir o e-mail do visitante.
+  // O primeiro envio manda ao Shylton um e-mail "Activate Form"; depois de ativado, as mensagens chegam normalmente.
   var EMAIL_CONTATO="shyltonmattosvieira@gmail.com";
+  var ENVIO_CONTATO="https://formsubmit.co/ajax/"+EMAIL_CONTATO;
   var formC=document.getElementById("form-contato"),stC=document.getElementById("ct-status");
   formC.addEventListener("input",function(e){if(e.target.getAttribute("aria-invalid")==="true"&&e.target.value.trim())e.target.setAttribute("aria-invalid","false");});
   formC.addEventListener("submit",function(e){
@@ -398,13 +391,18 @@
     else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)){erro="Confira o email: ele precisa ter o formato nome@dominio.com.";campo="ct-email";}
     else if(!d.msg){erro="Escreva sua mensagem.";campo="ct-msg";}
     if(erro){stC.className="status erro";stC.textContent=erro;var c=document.getElementById(campo);c.setAttribute("aria-invalid","true");c.focus();return;}
+    if(v("ct-honey"))return; /* campo-isca: só robôs preenchem */
     var nome=(d.nome+" "+d.sobrenome).trim();
-    var corpo=d.msg+"\n\n"+nome+"\n"+d.email+(d.tel?"\n+55 "+d.tel:"");
-    var a=document.createElement("a");
-    a.href="mailto:"+EMAIL_CONTATO+"?subject="+encodeURIComponent("Contato pelo site · "+nome)+"&body="+encodeURIComponent(corpo);
-    a.target="_blank";a.rel="noopener";document.body.appendChild(a);a.click();a.remove();
-    stC.className="status ok";
-    stC.textContent="Abrimos seu email com a mensagem pronta. É só enviar. Se nada abriu, escreva para "+EMAIL_CONTATO+".";
+    var btn=formC.querySelector("button[type=submit]");btn.disabled=true;
+    stC.className="status";stC.textContent="Enviando…";
+    fetch(ENVIO_CONTATO,{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({
+      Nome:nome,email:d.email,Telefone:d.tel?"+55 "+d.tel:"",Mensagem:d.msg,
+      _replyto:d.email,_subject:"Contato pelo site · "+nome,_template:"table",_captcha:"false"
+    })})
+    .then(function(r){return r.json().catch(function(){return {};}).then(function(j){if(!r.ok||String(j.success)!=="true")throw new Error(j.message||"falha no envio");});})
+    .then(function(){formC.reset();stC.className="status ok";stC.textContent="Mensagem enviada. O Shylton responde no seu e-mail.";})
+    .catch(function(){stC.className="status erro";stC.textContent="Não foi possível enviar agora. Tente de novo em instantes ou fale pelo WhatsApp.";})
+    .then(function(){btn.disabled=false;});
   });
 })();
 </script>
