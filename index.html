@@ -390,8 +390,8 @@
 
   // Contato: a mensagem vai direto para o e-mail do Shylton (administrador 2) pelo FormSubmit, sem abrir o e-mail do visitante.
   // O primeiro envio manda ao Shylton um e-mail "Activate Form"; depois de ativado, as mensagens chegam normalmente.
-  var EMAIL_CONTATO="shyltonmattosvieira@gmail.com";
-  var ENVIO_CONTATO="https://formsubmit.co/ajax/"+EMAIL_CONTATO;
+  // Código do FormSubmit no lugar do e-mail: leva ao Gmail do Shylton sem expor o endereço a robôs de spam.
+  var ENVIO_CONTATO="https://formsubmit.co/ajax/7b8a89291ab518e894c1a118f8945477";
   var formC=document.getElementById("form-contato"),stC=document.getElementById("ct-status");
   formC.addEventListener("input",function(e){if(e.target.getAttribute("aria-invalid")==="true"&&e.target.value.trim())e.target.setAttribute("aria-invalid","false");});
   formC.addEventListener("submit",function(e){

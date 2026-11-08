@@ -117,7 +117,7 @@ var PADRAO={
   calc:{base:1500,adicional:1000,m2Base:20,m2Extra:30,fatorFoto:0,fatorMostra:0,fatorCliente:20,semProjeto:20,urgDias:15,urgPerc:15,deslocamento:350,cidadesBase:"Florianópolis, São Paulo",arredondar:50,diasPorAmbiente:1,diasMin:2,ambPorAjudante:2},
   whatsappAdm:"+55 48 99621-0587",
   siteUrl:"https://shyltonmavie.com/",
-  contratado:{nome:"Shylton Mattos Vieira",nacionalidade:"brasileiro",profissao:"arquiteto e urbanista",cpf:"",cau:"",endereco:"",email:"shyltonmattosvieira@gmail.com",telefone:"+55 48 9 9621-0587",instagram:"@shyltu",cidade:"Florianópolis, SC / BRASIL",pix:"",marca:"MATO Produção"},
+  contratado:{nome:"Shylton Mattos Vieira",nacionalidade:"brasileiro",profissao:"arquiteto e urbanista",cpf:"",cau:"",endereco:"",email:["shyltonmattosvieira","gmail.com"].join("@"),telefone:"+55 48 9 9621-0587",instagram:"@shyltu",cidade:"Florianópolis, SC / BRASIL",pix:"",marca:"MATO Produção"},
   contrato:{sinal:50,limiteDespesa:300,diaria:800,prazoConceito:7,prazoAprovacao:3,revisoes:1,diasCancel:15,retencao:20,retencaoMax:50,prazoFotos:30,multaFotos:20,foro:"Florianópolis/SC",cidade:"Florianópolis"},
   proposta:{
     pagamento:"À vista",
