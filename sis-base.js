@@ -436,7 +436,7 @@ var PAI={proposta:"propostas",contrato:"contratos",producao:"producoes",revisao:
 SIS.mod={};
 var vista=null;
 function rotaAtual(){return (location.hash||"").slice(1);}
-function trata(h){return /^adm(\/|$)/.test(h)||h==="cadastro-cliente"||h==="cadastro-equipe"||/(^|&)(access_token|error_description)=/.test(h);}
+function trata(h){return /^adm(\/|$)/.test(h)||h==="cadastro-cliente"||/(^|&)(access_token|error_description)=/.test(h);}
 /* Estilos, fontes dos documentos e módulos só são baixados quando a área restrita abre */
 var extrasP=null;
 function extras(){
@@ -464,7 +464,7 @@ var mudou=debounce(function(){
 function render(){
   var raiz=document.getElementById("sis");if(!raiz||raiz.hidden)return;
   var h=rotaAtual();
-  if(h==="cadastro-cliente"||h==="cadastro-equipe"){vista=null;SIS.publica(raiz,h);return;}
+  if(h==="cadastro-cliente"){vista=null; /* equipe não tem link público: só o adm cadastra membros */SIS.publica(raiz,h);return;}
   var ps=h.split("/"),nome=ps[1]||"",id=ps.slice(2).join("/");
   if(!Sessao.papel){telaEntrada(raiz);return;}
   var colab=!ehAdm();
@@ -480,7 +480,8 @@ function render(){
   try{mod.render($("#sis-main"),id,vista);}catch(e){$("#sis-main").innerHTML='<p class="vazio-sis">Algo deu errado ao abrir esta tela. Volte ao início e tente de novo.</p>';if(window.console)console.error(e);}
 }
 
-function logoSVG(){return '<svg class="logo" viewBox="-4 -4 963 156" role="img" aria-label="Shylton Mavie"><use href="#g-horizontal"/></svg>';}
+/* Mesma assinatura do cabeçalho do site (símbolo + nome, sem traço); o link que a envolve leva a classe barra__logo */
+function logoSVG(){return '<svg class="barra__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="barra__nome">Shylton Mavie</span>';}
 /* Ícones da barra lateral: traço 1.5 em grade de 24, sem preenchimento */
 var ICO={
   inicio:'<path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v11.5h13V9"/><path d="M10 20.5v-6h4v6"/>',
@@ -511,7 +512,7 @@ function cascaHTML(ativo){
   pe.push(sbItem("button",'type="button" data-sair',"sair","Sair"));
   pe.push(sbItem("a",'href="#inicio"',"site","Ver o site"));
   var modo=Store.modo==="local"?'<p class="sis-modo">Modo demonstração: os dados ficam só neste navegador. No site publicado com servidor, os dados ficam no banco e cada pessoa entra com o próprio login.</p>':(Sessao.previa?'<p class="sis-modo">Você está vendo a área como um colaborador vê: só Tarefas e Calendário.</p>':"");
-  return '<header class="sis-topo-m"><a href="#adm" class="sis-topo-m__logo" aria-label="Área restrita, início">'+logoSVG()+'</a><button type="button" class="menu-btn" data-sb-abrir aria-expanded="false" aria-controls="sis-sb">Menu</button></header>'+
+  return '<header class="sis-topo-m"><a href="#adm" class="sis-topo-m__logo barra__logo" aria-label="Área restrita, início">'+logoSVG()+'</a><button type="button" class="menu-btn" data-sb-abrir aria-expanded="false" aria-controls="sis-sb">Menu</button></header>'+
     '<aside class="sb" id="sis-sb" aria-label="Menu da área restrita">'+
       '<div class="sb__topo"><a href="#adm" class="sb__logo" aria-label="Área restrita, início">'+logoSB()+'</a><button type="button" class="sb__fechar" data-sb-fechar>Fechar</button></div>'+
       '<nav class="sb__nav" aria-label="Área restrita">'+itens.map(function(n){return sbItem("a",'href="#adm/'+n[0]+'"'+(n[0]===ativo?' aria-current="page"':''),n[0],n[1]);}).join("")+'</nav>'+
@@ -559,6 +560,8 @@ function msgErroSupa(e){
   if(c==="weak_password")return "Senha fraca. Use pelo menos 8 caracteres, com letras e números.";
   if(c==="user_already_exists")return "Este e-mail já tem cadastro. Use Entrar ou Esqueci minha senha.";
   if(c==="same_password")return "A nova senha precisa ser diferente da anterior.";
+  /* O banco recusa conta de e-mail que o adm não liberou na aba Equipe (gatilho so_liberados) */
+  if(/database error saving new user|acesso_nao_liberado/i.test(m))return "Este e-mail não foi liberado. Só cria acesso quem o Shylton autorizar na aba Equipe.";
   return "Não foi possível concluir agora. Tente de novo.";
 }
 function telaSupa(raiz,modo){

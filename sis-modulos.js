@@ -775,7 +775,7 @@ function modalMembro(id){
 }
 M.equipe={render:function(m,id,vista){
   m.innerHTML=cab("Equipe","Só quem é membro entra na área restrita. Marque Membro: Sim e escolha o acesso: colaborador vê só Tarefas e Calendário.",'<span></span><button type="button" class="btn btn--escuro" data-novo>+ Novo membro</button>')+
-    caixaLink("Link de cadastro do colaborador","cadastro-equipe")+'<div id="sis-lista"></div>';
+    '<div id="sis-lista"></div>';
   ligarCopiarLink(m);
   $("[data-novo]",m).addEventListener("click",function(){modalMembro(null);});
   aoClicarLinha($("#sis-lista",m),modalMembro);
