@@ -103,8 +103,8 @@ function usar(nome){
 var FINALIDADES={foto:"Produção para foto",cliente:"Cliente final",mostra:"Exposição ou mostra"};
 var FINALIDADE_CAPS={foto:"PRODUÇÃO PARA FOTO",cliente:"CLIENTE FINAL",mostra:"MOSTRA"};
 var ST={
-  proposta:{nova:["Nova","#7D7A75"],revisao:["Em revisão","#B08A3E"],enviada:["Enviada","#5F6F7A"],aceita:["Aceita","#3E6B48"],recusada:["Recusada","#9A3B2E"]},
-  contrato:{rascunho:["Rascunho","#7D7A75"],enviado:["Enviado para assinatura","#5F6F7A"],assinado:["Assinado","#3E6B48"],concluido:["Concluído","#111111"],cancelado:["Cancelado","#9A3B2E"]},
+  proposta:{nova:["Nova","#7D7A75"],enviada:["Enviada","#5F6F7A"],aceita:["Aceita","#3E6B48"],recusada:["Recusada","#9A3B2E"]},
+  contrato:{enviado:["Enviado","#5F6F7A"],assinado:["Assinado","#3E6B48"],cancelado:["Cancelado","#9A3B2E"],rascunho:["Rascunho","#7D7A75"]}, /* "concluido" antigo conta como Assinado */
   producao:{planejada:["Planejada","#7D7A75"],andamento:["Em produção","#B08A3E"],concluida:["Concluída","#3E6B48"],cancelada:["Cancelada","#9A3B2E"]},
   equipe:{pendente:["Aguardando liberação","#B08A3E"],ativo:["Liberado","#3E6B48"],bloqueado:["Bloqueado","#9A3B2E"]},
   financeiro:{pago:["Pago","#3E6B48"],pendente:["Pendente","#B08A3E"]}
@@ -165,8 +165,8 @@ function calcular(p){
    propostas, contratos, clientes, parceiros, equipe e financeiro só para o adm.
    Fora dela: modo demonstração no navegador (localStorage). */
 var LS="sm-sistema-v1";
-var COLS_ADM=["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config"];
-var COLS_COLAB=["tarefas","agenda"];
+var COLS_ADM=["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config","time"];
+var COLS_COLAB=["tarefas","agenda","parceiros","producoes","time"];
 var Store={
   modo:"carregando",db:null,dados:{},ouvintes:[],carregado:{},assinadas:"",
   get:function(col,id){return (this.dados[col]||{})[id]||null;},
@@ -430,8 +430,8 @@ function criarAcesso(email,senha){
 function ehAdm(){return Sessao.papel==="adm"&&!Sessao.previa;}
 
 /* ---------- rotas ---------- */
-var NAV=[["inicio","Início"],["propostas","Propostas"],["producoes","Produções"],["financeiro","Financeiro"],["contratos","Contratos"],["clientes","Clientes"],["calendario","Calendário"],["parceiros","Parceiros"],["tarefas","Tarefas"],["equipe","Equipe"],["ajustes","Ajustes"]];
-var DO_COLAB=["tarefas","calendario"];
+var NAV=[["inicio","Início"],["producoes","Produções"],["tarefas","Tarefas"],["calendario","Calendário"],["clientes","Clientes"],["equipe","Equipe"],["parceiros","Parceiros"],["financeiro","Financeiro"],["propostas","Propostas"],["contratos","Contratos"],["ajustes","Ajustes"]];
+var DO_COLAB=["producoes","tarefas","calendario","parceiros"];
 var PAI={proposta:"propostas",contrato:"contratos",producao:"producoes",revisao:"contratos"};
 SIS.mod={};
 var vista=null;
@@ -511,7 +511,7 @@ function cascaHTML(ativo){
   if(Sessao.papel==="adm")pe.push(sbItem("button",'type="button" data-previa',"previa",Sessao.previa?"Ver como administrador":"Ver como colaborador"));
   pe.push(sbItem("button",'type="button" data-sair',"sair","Sair"));
   pe.push(sbItem("a",'href="#inicio"',"site","Ver o site"));
-  var modo=Store.modo==="local"?'<p class="sis-modo">Modo demonstração: os dados ficam só neste navegador. No site publicado com servidor, os dados ficam no banco e cada pessoa entra com o próprio login.</p>':(Sessao.previa?'<p class="sis-modo">Você está vendo a área como um colaborador vê: só Tarefas e Calendário.</p>':"");
+  var modo=Store.modo==="local"?'<p class="sis-modo">Modo demonstração: os dados ficam só neste navegador. No site publicado com servidor, os dados ficam no banco e cada pessoa entra com o próprio login.</p>':(Sessao.previa?'<p class="sis-modo">Você está vendo a área como um colaborador vê: Produções e Parceiros (só consulta, sem valores), Tarefas e Calendário.</p>':"");
   return '<header class="sis-topo-m"><a href="#adm" class="sis-topo-m__logo barra__logo" aria-label="Área restrita, início">'+logoSVG()+'</a><button type="button" class="menu-btn" data-sb-abrir aria-expanded="false" aria-controls="sis-sb">Menu</button></header>'+
     '<aside class="sb" id="sis-sb" aria-label="Menu da área restrita">'+
       '<div class="sb__topo"><a href="#adm" class="sb__logo" aria-label="Área restrita, início">'+logoSB()+'</a><button type="button" class="sb__fechar" data-sb-fechar>Fechar</button></div>'+
