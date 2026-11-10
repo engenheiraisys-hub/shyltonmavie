@@ -185,25 +185,50 @@ function lerSlide(sl){
   }
   return d;
 }
-function recortarFoto(f){ /* o pedaço da foto que aparece no quadro (background-size:cover), na resolução da foto, até 3× */
+/* Fotos (2026-11-10, "imagens ainda em baixa qualidade"): a foto entra INTEIRA e sem mexer nos pixels — o arquivo .jpg vai
+   direto para o PDF (sem reamostrar nem recomprimir) e o recorte do quadro (background-size:cover) é feito pelo próprio PDF.
+   Para um .webp, usa o .jpg de mesmo nome quando existe (mais fiel que o .webp); senão converte o .webp em JPEG 0.95, no tamanho dele.
+   A nitidez máxima é a do arquivo da foto no site. */
+function dimsJPEG(u8){ /* largura e altura gravadas no JPEG (marcador SOF) */
+  for(var i=2;i+9<u8.length;){
+    if(u8[i]!==0xFF){i++;continue;}
+    var m=u8[i+1];if(m===0xFF){i++;continue;}
+    if(m>=0xC0&&m<=0xCF&&m!==0xC4&&m!==0xC8&&m!==0xCC)return {h:(u8[i+5]<<8)|u8[i+6],w:(u8[i+7]<<8)|u8[i+8]};
+    i+=2+((u8[i+2]<<8)|u8[i+3]);
+  }
+  return null;
+}
+function abrirImagem(u){
   return new Promise(function(ok,erro){
-    var im=new Image();
-    im.onload=function(){
-      try{
-        var esc=Math.max(f.w/im.naturalWidth,f.h/im.naturalHeight),dw=im.naturalWidth*esc,dh=im.naturalHeight*esc;
-        function pos(v,livre){v=String(v||"50%");return /%$/.test(v)?livre*parseFloat(v)/100:parseFloat(v)||0;}
-        var ox=pos(f.px,f.w-dw),oy=pos(f.py,f.h-dh),q=Math.min(1/esc,3),cv=document.createElement("canvas");
-        cv.width=Math.max(1,Math.round(f.w*q));cv.height=Math.max(1,Math.round(f.h*q));
-        var c=cv.getContext("2d");c.imageSmoothingEnabled=true;c.imageSmoothingQuality="high";
-        c.drawImage(im,-ox/esc,-oy/esc,f.w/esc,f.h/esc,0,0,cv.width,cv.height);
-        ok(cv.toDataURL("image/jpeg",0.92));
-      }catch(e){erro(e);}
-    };
-    im.onerror=function(){erro(new Error("foto "+f.src));};
-    if(!/^(data:|blob:)/.test(f.src)&&new URL(f.src,location.href).origin!==location.origin)im.crossOrigin="anonymous";
-    im.src=f.src;
+    var im=new Image();im.onload=function(){ok(im);};im.onerror=function(){erro(new Error("foto "+u));};
+    if(!/^(data:|blob:)/.test(u)&&new URL(u,location.href).origin!==location.origin)im.crossOrigin="anonymous";
+    im.src=u;
   });
 }
+/* Fotos em alta (2026-11-10, originais da Isys): img/<nome>-g.jpg (lado maior 2400), quando existe, entra no lugar da de 1600. */
+function versaoHD(u){return /\/img\/[^\/?#]+\.(jpe?g|webp)(\?|#|$)/i.test(u)?u.replace(/\/img\/([^\/?#]+)\.(jpe?g|webp)/i,"/img/$1-g.jpg"):"";}
+function fotoPDF(f){
+  var abs=new URL(f.src,location.href).href,jpg=abs.replace(/\.webp(\?|#|$)/i,".jpg$1"),hd=versaoHD(abs);
+  function baixar(u){return fetch(u).then(function(r){if(!r.ok)throw new Error("sem "+u);return r.arrayBuffer();});}
+  var direto=!/\.jpe?g(\?|#|$)/i.test(jpg)?Promise.reject():
+    (hd?baixar(hd).catch(function(){return baixar(jpg);}):baixar(jpg)).then(function(b){
+      var u8=new Uint8Array(b),d=dimsJPEG(u8),url=URL.createObjectURL(new Blob([u8],{type:"image/jpeg"}));
+      if(!d)throw new Error("jpeg sem SOF");
+      return abrirImagem(url).then(function(im){
+        URL.revokeObjectURL(url);
+        if(im.naturalWidth!==d.w||im.naturalHeight!==d.h)throw new Error("jpeg girado pelo EXIF"); /* o PDF não gira: vai pelo canvas */
+        return {dados:u8,w:d.w,h:d.h};
+      });
+    });
+  return direto.catch(function(){
+    return abrirImagem(abs).then(function(im){
+      var c=document.createElement("canvas");c.width=im.naturalWidth;c.height=im.naturalHeight;
+      var x=c.getContext("2d");x.fillStyle="#FFFFFF";x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0);
+      return {dados:c.toDataURL("image/jpeg",0.95),w:c.width,h:c.height};
+    });
+  }).then(function(r){f.img=r.dados;f.iw=r.w;f.ih=r.h;});
+}
+function posFundo(v,livre){v=String(v||"50%");return /%$/.test(v)?livre*parseFloat(v)/100:parseFloat(v)||0;}
 function glifo(pdf,cmd,x,y,s){ /* contorno de uma letra (unidades da fonte, y para cima) */
   var re=/([MLQCZ])([^MLQCZ]*)/g,m,cx=0,cy=0,sx=0,sy=0;
   function X(v){return x+v*s;}function Y(v){return y-v*s;}
@@ -218,7 +243,12 @@ function glifo(pdf,cmd,x,y,s){ /* contorno de uma letra (unidades da fonte, y pa
 }
 function desenharSlide(pdf,d,k){
   d.fundos.forEach(function(f){pdf.setFillColor(f.c[0],f.c[1],f.c[2]);pdf.rect(f.x,f.y,f.w,f.h,"F");});
-  d.fotos.forEach(function(f){pdf.addImage(f.img,"JPEG",f.x,f.y,f.w,f.h);});
+  d.fotos.forEach(function(f){ /* foto inteira posicionada como o cover da tela, cortada pelo quadro */
+    var esc=Math.max(f.w/f.iw,f.h/f.ih),dw=f.iw*esc,dh=f.ih*esc;
+    pdf.saveGraphicsState();pdf.rect(f.x,f.y,f.w,f.h,null);pdf.clip();pdf.discardPath();
+    pdf.addImage(f.img,"JPEG",f.x+posFundo(f.px,f.w-dw),f.y+posFundo(f.py,f.h-dh),dw,dh,f.src);
+    pdf.restoreGraphicsState();
+  });
   d.simbolos.forEach(function(s){
     pdf.setFillColor(s.c[0],s.c[1],s.c[2]);pdf.setDrawColor(s.c[0],s.c[1],s.c[2]);
     s.formas.forEach(function(f){
@@ -246,7 +276,7 @@ function pdfVetor(sls,titulo){
       return FONTES_B64[n]?null:fetch("fontes/"+n+".ttf").then(function(r){if(!r.ok)throw new Error("fonte "+n);return r.arrayBuffer();}).then(function(b){FONTES_B64[n]=emBase64(b);});
     })),
     contorno&&!JOSEFIN?fetch("fontes/josefin-335.json").then(function(r){if(!r.ok)throw new Error("josefin-335");return r.json();}).then(function(j){JOSEFIN=j;}):null,
-    Promise.all(fotos.map(function(f){return recortarFoto(f).then(function(u){f.img=u;});}))
+    Promise.all(fotos.map(fotoPDF))
   ]).then(function(){
     var pdf=novoPDF(),k=pdf.internal.scaleFactor;
     pdf.setProperties({title:titulo,author:"Shylton Mavie",creator:"shyltonmavie.com"});
