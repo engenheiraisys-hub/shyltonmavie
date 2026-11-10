@@ -260,6 +260,7 @@ M.proposta={render:function(m,id,vista){
         {k:"finalidade",r:"Finalidade",t:"select",o:opcoesFin()},
         {k:"dataSugerida",r:"Data sugerida",t:"date"},{k:"temProjeto",r:"Tem projeto ou arquivo do SketchUp",t:"check",full:1}],ed)+
         '<div class="f f--full">Arquivos de projeto'+arquivosHTML()+'</div>'+
+        ((ed.fotos||[]).length?'<div class="f f--full">Fotos do espaço<div class="miniaturas">'+ed.fotos.map(function(f){var u=S.urlArquivo(f);return u?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="'+esc(f.nome)+'" loading="lazy"></a>':'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div></div>':'')+
         S.campos([{k:"mensagem",r:"Mensagem do cliente",t:"area",full:1}],ed)+'</div></section>'+
       '<section class="ed__bloco"><h2>'+ik("ambiente")+'Ambientes</h2><div class="rep" id="ed-amb">'+ambHTML()+'</div><p style="margin-top:var(--s-12)"><button type="button" class="lnk" data-add-amb>'+ik("mais")+'Adicionar ambiente</button></p></section>'+
       '<section class="ed__bloco"><h2>'+ik("calc")+'Calculadora<small>valores-base em <a class="lnk" href="#adm/ajustes">Ajustes</a></small></h2><ul class="calc" id="ed-calc">'+calcHTML()+'</ul><div class="fgrid">'+S.campos([

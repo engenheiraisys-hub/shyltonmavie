@@ -56,7 +56,7 @@ function slidesHTML(p){
   var intro="Apresentamos as condições para a produção de ambiente dos ambientes mencionados na proposta"+(p.contexto?" "+p.contexto.replace(/\.$/,""):"")+".<br>O objetivo é "+(OBJETIVO[p.finalidade]||OBJETIVO.foto)+".";
   var port=slidesPortfolio(p,"01"),nInv=port?"02":"01";
   return ''+
-  '<section class="sl sl--capa"><div class="lock">'+SIMB+'<span>'+NOME+'</span></div></section>'+
+  '<section class="sl sl--capa"><div class="lock">'+SIMB+'<span>produção</span></div></section>'+
   '<section class="sl sl--marca">'+assinatura()+'<p class="sl__rod">'+SIMB+'/ '+esc(cli.nome||"Cliente")+'<small>Arquiteto, Urbanista e Produtor Shylton Mavie, '+esc(String(p.data||S.hoje()).slice(0,4))+'</small></p></section>'+
   '<section class="sl sl--dados"><span class="sl__simb">'+SIMB+'</span><div class="sl__col">'+
     '<p class="t">'+esc(titulo)+(cli.codigo?'<br>'+esc(cli.codigo.toUpperCase()):'')+'</p>'+
@@ -86,27 +86,200 @@ function carregar(src){
     s.onload=function(){s.setAttribute("data-ok","1");ok();};s.onerror=function(){erro(new Error("script"));};document.head.appendChild(s);
   });
 }
+/* PDF da proposta em vetor (pedido da Isys, 2026-11-10: em imagem saía tudo borrado).
+   Os slides são montados na tela (1280 × 720 px) e cada peça é lida de lá e redesenhada no PDF, então sai igual à prévia:
+   • texto como texto, palavra por palavra na posição exata, com Lexend e Lexend Exa embutidas
+     (fontes/*.ttf: só as usadas são baixadas, e o jsPDF embute só as letras usadas);
+   • nome SHYLTON MAVIE e "produção" em Josefin Sans 335: peso de fonte variável, que o PDF não aceita, então vão como
+     contorno das letras (fontes/josefin-335.json, tirado da Josefin Sans variável do Google no peso 335);
+   • símbolos como círculos e retângulos; fotos recortadas da imagem original, na resolução dela (até 3×).
+   Se algo falhar, sai em imagem de alta resolução (×3) e, em último caso, abre a impressão. */
+var JSPDF="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",H2C="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+var PESOS_PDF={"lexend":[200,300,400,500,600],"lexend exa":[300,600]}; /* os pesos que a página carrega (sis-base.js) */
+var FONTES_B64={},JOSEFIN=null,ctxMede=null;
+function novoPDF(){return new window.jspdf.jsPDF({orientation:"landscape",unit:"px",format:[1280,720],hotfixes:["px_scaling"],compress:true});}
+function pesoCSS(lista,w){ /* a regra do CSS para escolher o peso quando o pedido não está carregado (ex.: Lexend Exa 400 cai no 300) */
+  if(lista.indexOf(w)>=0)return w;
+  var menos=lista.filter(function(x){return x<w;}).sort(function(a,b){return b-a;}),mais=lista.filter(function(x){return x>w;}).sort(function(a,b){return a-b;});
+  if(w>=400&&w<=500){var ate=mais.filter(function(x){return x<=500;});return ate.length?ate[0]:(menos.length?menos[0]:mais[0]);}
+  return w<400?(menos.length?menos[0]:mais[0]):(mais.length?mais[0]:menos[0]);
+}
+function corRGB(c){var m=String(c).match(/[\d.]+/g)||[];return [+(m[0]||0),+(m[1]||0),+(m[2]||0),m.length>3?+m[3]:1];}
+function emBase64(buf){var u=new Uint8Array(buf),s="",i;for(i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s);}
+var ASC={};
+function ascente(fonte,fs){ /* do topo da caixa do texto até a linha de base, medido no próprio navegador (marcador de altura zero na linha de base) */
+  ctxMede=ctxMede||document.createElement("canvas").getContext("2d");
+  if(ASC[fonte]!=null)return ASC[fonte];
+  var s=document.createElement("span"),i=document.createElement("i"),t=document.createTextNode("Hg");
+  s.style.cssText="position:absolute;left:0;top:0;white-space:nowrap;line-height:normal;font:"+fonte;
+  i.style.cssText="display:inline-block;width:0;height:0;vertical-align:baseline";
+  s.appendChild(i);s.appendChild(t);document.body.appendChild(s);
+  var rg=document.createRange();rg.selectNodeContents(t);var r=rg.getClientRects()[0];
+  var v=r?i.getBoundingClientRect().top-r.top:fs*.8;s.remove();return ASC[fonte]=v;
+}
+function lerSlide(sl){
+  var o=sl.getBoundingClientRect(),d={fundos:[],fotos:[],simbolos:[],textos:[]};
+  function caixa(b){return {x:b.left-o.left,y:b.top-o.top,w:b.width,h:b.height};}
+  function estilo(cs){
+    var fam=cs.fontFamily.split(",")[0].replace(/["']/g,"").trim().toLowerCase(),w=parseInt(cs.fontWeight,10)||400,fs=parseFloat(cs.fontSize);
+    return {face:fam==="josefin sans"?"":PESOS_PDF[fam]?fam.replace(/ /g,"-")+"-"+pesoCSS(PESOS_PDF[fam],w):"lexend-"+pesoCSS(PESOS_PDF.lexend,w),
+      fs:fs,asc:ascente(cs.fontStyle+" "+w+" "+fs+"px "+cs.fontFamily,fs),ls:parseFloat(cs.letterSpacing)||0,cor:corRGB(cs.color),
+      fonte:cs.fontStyle+" "+w+" "+fs+"px "+cs.fontFamily};
+  }
+  function texto(st,t,b){ /* palavra (ou letra, no nome em contorno) com a linha de base */
+    d.textos.push({t:t,x:b.left-o.left,y:b.top-o.top+st.asc,face:st.face,fs:st.fs,ls:st.ls,cor:st.cor});
+  }
+  S.$$("*",sl).forEach(function(el){
+    if(el.closest("svg"))return;
+    var cs=getComputedStyle(el);if(cs.visibility==="hidden")return;
+    var b=el.getBoundingClientRect();if(!b.width||!b.height)return;
+    var c=corRGB(cs.backgroundColor);if(c[3]>0)d.fundos.push(Object.assign(caixa(b),{c:c}));
+    var u=/url\(["']?([^"')]+)["']?\)/.exec(cs.backgroundImage);
+    if(u)d.fotos.push(Object.assign(caixa(b),{src:u[1],px:cs.backgroundPositionX,py:cs.backgroundPositionY}));
+    ["Top","Right","Bottom","Left"].forEach(function(l){
+      var w=parseFloat(cs["border"+l+"Width"]);if(!(w>0)||cs["border"+l+"Style"]==="none")return;
+      var r=caixa(b);if(l==="Top")r.h=w;else if(l==="Bottom"){r.y+=r.h-w;r.h=w;}else if(l==="Left")r.w=w;else{r.x+=r.w-w;r.w=w;}
+      r.c=corRGB(cs["border"+l+"Color"]);d.fundos.push(r);
+    });
+    if(cs.display==="list-item"&&cs.listStyleType==="disc"&&cs.listStylePosition==="outside"){
+      /* marcador "• " como o Chrome desenha: na fonte do item, terminando onde começa o conteúdo, na linha de base da 1ª linha */
+      var n=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode:function(x){return /\S/.test(x.data)?1:3;}}).nextNode();
+      if(n){var st=estilo(cs),rg=document.createRange(),i=n.data.search(/\S/);rg.setStart(n,i);rg.setEnd(n,i+1);var r1=rg.getClientRects()[0];
+        if(r1){ctxMede.font=st.fonte;var esq=b.left+parseFloat(cs.borderLeftWidth)+parseFloat(cs.paddingLeft);
+          texto(st,"•",{left:esq-ctxMede.measureText("• ").width,top:r1.top});}}
+    }
+  });
+  S.$$("svg",sl).forEach(function(svg){
+    var b=svg.getBoundingClientRect();if(!b.width||!b.height)return;
+    var vb=(svg.getAttribute("viewBox")||"0 0 "+b.width+" "+b.height).split(/[\s,]+/).map(Number),kx=b.width/vb[2],ky=b.height/vb[3],fs=[];
+    S.$$("circle,rect,path",svg).forEach(function(e){
+      function a(n){return parseFloat(e.getAttribute(n))||0;}
+      var tag=e.tagName.toLowerCase();
+      if(tag==="circle")fs.push({t:"c",cx:a("cx"),cy:a("cy"),r:a("r")});
+      else if(tag==="rect")fs.push({t:"r",x:a("x"),y:a("y"),w:a("width"),h:a("height")});
+      else{ /* o anel do símbolo vazado: cada subcaminho "M x y a r …" é um círculo de raio r começando no topo */
+        var cc=[],re=/M\s*([\d.-]+)[\s,]+([\d.-]+)\s*a\s*([\d.]+)/gi,m;
+        while((m=re.exec(e.getAttribute("d")||"")))cc.push({cx:+m[1],cy:+m[2]+(+m[3]),r:+m[3]});
+        if(cc.length===2)fs.push({t:"anel",cx:cc[0].cx,cy:cc[0].cy,r1:Math.max(cc[0].r,cc[1].r),r2:Math.min(cc[0].r,cc[1].r)});
+        else if(cc.length)cc.forEach(function(c){fs.push({t:"c",cx:c.cx,cy:c.cy,r:c.r});});
+        else throw new Error("forma do símbolo não reconhecida");
+      }
+    });
+    d.simbolos.push({x:b.left-o.left-vb[0]*kx,y:b.top-o.top-vb[1]*ky,kx:kx,ky:ky,c:corRGB(getComputedStyle(svg).fill),formas:fs});
+  });
+  var tw=document.createTreeWalker(sl,NodeFilter.SHOW_TEXT,null),n;
+  while((n=tw.nextNode())){
+    if(!/\S/.test(n.data))continue;
+    var el=n.parentElement;if(!el||el.closest("svg"))continue;
+    var cs=getComputedStyle(el);if(cs.visibility==="hidden")continue;
+    var st=estilo(cs),cx=cs.textTransform==="uppercase",re=/\S+/g,m;
+    while((m=re.exec(n.data))){
+      var rg=document.createRange();rg.setStart(n,m.index);rg.setEnd(n,m.index+m[0].length);
+      var rs=rg.getClientRects();if(!rs.length)continue;
+      if(rs.length===1&&st.face){texto(st,cx?m[0].toLocaleUpperCase("pt-BR"):m[0],rs[0]);continue;}
+      for(var i=0;i<m[0].length;i++){ /* letra a letra: nome em contorno, ou palavra quebrada em duas linhas */
+        var rl=document.createRange();rl.setStart(n,m.index+i);rl.setEnd(n,m.index+i+1);var r=rl.getClientRects()[0];
+        if(r)texto(st,cx?m[0][i].toLocaleUpperCase("pt-BR"):m[0][i],r);
+      }
+    }
+  }
+  return d;
+}
+function recortarFoto(f){ /* o pedaço da foto que aparece no quadro (background-size:cover), na resolução da foto, até 3× */
+  return new Promise(function(ok,erro){
+    var im=new Image();
+    im.onload=function(){
+      try{
+        var esc=Math.max(f.w/im.naturalWidth,f.h/im.naturalHeight),dw=im.naturalWidth*esc,dh=im.naturalHeight*esc;
+        function pos(v,livre){v=String(v||"50%");return /%$/.test(v)?livre*parseFloat(v)/100:parseFloat(v)||0;}
+        var ox=pos(f.px,f.w-dw),oy=pos(f.py,f.h-dh),q=Math.min(1/esc,3),cv=document.createElement("canvas");
+        cv.width=Math.max(1,Math.round(f.w*q));cv.height=Math.max(1,Math.round(f.h*q));
+        var c=cv.getContext("2d");c.imageSmoothingEnabled=true;c.imageSmoothingQuality="high";
+        c.drawImage(im,-ox/esc,-oy/esc,f.w/esc,f.h/esc,0,0,cv.width,cv.height);
+        ok(cv.toDataURL("image/jpeg",0.92));
+      }catch(e){erro(e);}
+    };
+    im.onerror=function(){erro(new Error("foto "+f.src));};
+    if(!/^(data:|blob:)/.test(f.src)&&new URL(f.src,location.href).origin!==location.origin)im.crossOrigin="anonymous";
+    im.src=f.src;
+  });
+}
+function glifo(pdf,cmd,x,y,s){ /* contorno de uma letra (unidades da fonte, y para cima) */
+  var re=/([MLQCZ])([^MLQCZ]*)/g,m,cx=0,cy=0,sx=0,sy=0;
+  function X(v){return x+v*s;}function Y(v){return y-v*s;}
+  while((m=re.exec(cmd))){
+    var a=m[2].trim()?m[2].trim().split(/\s+/).map(Number):[];
+    if(m[1]==="M"){cx=sx=a[0];cy=sy=a[1];pdf.moveTo(X(cx),Y(cy));}
+    else if(m[1]==="L"){cx=a[0];cy=a[1];pdf.lineTo(X(cx),Y(cy));}
+    else if(m[1]==="Q"){pdf.curveTo(X(cx+2/3*(a[0]-cx)),Y(cy+2/3*(a[1]-cy)),X(a[2]+2/3*(a[0]-a[2])),Y(a[3]+2/3*(a[1]-a[3])),X(a[2]),Y(a[3]));cx=a[2];cy=a[3];}
+    else if(m[1]==="C"){pdf.curveTo(X(a[0]),Y(a[1]),X(a[2]),Y(a[3]),X(a[4]),Y(a[5]));cx=a[4];cy=a[5];}
+    else{pdf.close();cx=sx;cy=sy;}
+  }
+}
+function desenharSlide(pdf,d,k){
+  d.fundos.forEach(function(f){pdf.setFillColor(f.c[0],f.c[1],f.c[2]);pdf.rect(f.x,f.y,f.w,f.h,"F");});
+  d.fotos.forEach(function(f){pdf.addImage(f.img,"JPEG",f.x,f.y,f.w,f.h);});
+  d.simbolos.forEach(function(s){
+    pdf.setFillColor(s.c[0],s.c[1],s.c[2]);pdf.setDrawColor(s.c[0],s.c[1],s.c[2]);
+    s.formas.forEach(function(f){
+      if(f.t==="c")pdf.ellipse(s.x+f.cx*s.kx,s.y+f.cy*s.ky,f.r*s.kx,f.r*s.ky,"F");
+      else if(f.t==="r")pdf.rect(s.x+f.x*s.kx,s.y+f.y*s.ky,f.w*s.kx,f.h*s.ky,"F");
+      else{pdf.setLineWidth((f.r1-f.r2)*s.kx);pdf.circle(s.x+f.cx*s.kx,s.y+f.cy*s.ky,(f.r1+f.r2)/2*s.kx,"S");}
+    });
+  });
+  var atual="";
+  d.textos.forEach(function(t){
+    if(!t.face){ /* Josefin Sans 335 em contorno */
+      var g=JOSEFIN.g[t.t];if(g==null){if(window.console)console.warn("sem contorno para",t.t);return;}
+      if(!g)return;pdf.setFillColor(t.cor[0],t.cor[1],t.cor[2]);glifo(pdf,g,t.x,t.y,t.fs/JOSEFIN.upm);pdf.fill();return;
+    }
+    if(t.face!==atual){pdf.setFont(t.face,"normal");atual=t.face;}
+    pdf.setFontSize(t.fs*k);pdf.setTextColor(t.cor[0],t.cor[1],t.cor[2]);
+    pdf.text(t.t,t.x,t.y,{charSpace:t.ls});
+  });
+}
+function pdfVetor(sls,titulo){
+  var dados=sls.map(lerSlide),faces={},contorno=false,fotos=[];
+  dados.forEach(function(d){d.textos.forEach(function(t){if(t.face)faces[t.face]=1;else contorno=true;});fotos=fotos.concat(d.fotos);});
+  return Promise.all([
+    Promise.all(Object.keys(faces).map(function(n){
+      return FONTES_B64[n]?null:fetch("fontes/"+n+".ttf").then(function(r){if(!r.ok)throw new Error("fonte "+n);return r.arrayBuffer();}).then(function(b){FONTES_B64[n]=emBase64(b);});
+    })),
+    contorno&&!JOSEFIN?fetch("fontes/josefin-335.json").then(function(r){if(!r.ok)throw new Error("josefin-335");return r.json();}).then(function(j){JOSEFIN=j;}):null,
+    Promise.all(fotos.map(function(f){return recortarFoto(f).then(function(u){f.img=u;});}))
+  ]).then(function(){
+    var pdf=novoPDF(),k=pdf.internal.scaleFactor;
+    pdf.setProperties({title:titulo,author:"Shylton Mavie",creator:"shyltonmavie.com"});
+    Object.keys(faces).forEach(function(n){pdf.addFileToVFS(n+".ttf",FONTES_B64[n]);pdf.addFont(n+".ttf",n,"normal");});
+    dados.forEach(function(d,i){if(i)pdf.addPage([1280,720],"landscape");desenharSlide(pdf,d,k);});
+    return pdf.output("blob");
+  });
+}
+function pdfImagem(sls){ /* plano B: cada slide como imagem, em alta (×3) */
+  return carregar(H2C).then(function(){
+    var pdf=novoPDF(),i=0;
+    function prox(){
+      if(i>=sls.length)return Promise.resolve();
+      return window.html2canvas(sls[i],{scale:3,backgroundColor:"#ffffff",logging:false,useCORS:true}).then(function(cv){
+        if(i)pdf.addPage([1280,720],"landscape");
+        pdf.addImage(cv.toDataURL("image/jpeg",0.95),"JPEG",0,0,1280,720);i++;return prox();
+      });
+    }
+    return prox().then(function(){return pdf.output("blob");});
+  });
+}
 function propostaPDF(p){
   var aviso=document.createElement("div");aviso.className="gerando";aviso.textContent="Gerando o PDF da proposta…";
   var box=document.createElement("div");box.className="sl-render";box.innerHTML=slidesHTML(p);
   document.body.appendChild(box);document.body.appendChild(aviso);
   function fim(){box.remove();aviso.remove();}
-  return carregar("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js")
-    .then(function(){return carregar("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");})
+  var cli=p.cliente||{},nome=(cli.nome||"cliente").toUpperCase()+" - PROPOSTA PRODUÇÃO - SHYLTON MAVIE - "+String(p.data||S.hoje()).split("-").reverse().join("");
+  var sls=S.$$(".sl",box);
+  return carregar(JSPDF)
     .then(function(){return document.fonts?document.fonts.ready:null;})
-    .then(function(){
-      var pdf=new window.jspdf.jsPDF({orientation:"landscape",unit:"px",format:[1280,720],hotfixes:["px_scaling"],compress:true});
-      var sls=S.$$(".sl",box),i=0;
-      function prox(){
-        if(i>=sls.length)return Promise.resolve();
-        return window.html2canvas(sls[i],{scale:1.5,backgroundColor:"#ffffff",logging:false,useCORS:true}).then(function(cv){
-          if(i)pdf.addPage([1280,720],"landscape");
-          pdf.addImage(cv.toDataURL("image/jpeg",0.9),"JPEG",0,0,1280,720);i++;return prox();
-        });
-      }
-      return prox().then(function(){return pdf.output("blob");});
-    })
-    .then(function(blob){fim();var cli=p.cliente||{};return S.salvarArquivo((cli.nome||"cliente").toUpperCase()+" - PROPOSTA PRODUÇÃO - SHYLTON MAVIE - "+String(p.data||S.hoje()).split("-").reverse().join("")+".pdf",blob);})
+    .then(function(){return pdfVetor(sls,nome);})
+    .catch(function(e){if(window.console)console.warn("PDF em vetor falhou; indo em imagem.",e);return pdfImagem(sls);})
+    .then(function(blob){fim();return S.salvarArquivo(nome+".pdf",blob);})
     .catch(function(e){fim();if(window.console)console.error(e);S.toast("Não foi possível gerar o PDF aqui. Na janela de impressão, escolha Salvar como PDF.");imprimirProposta(p);}); /* sem botão Imprimir: a impressão só entra como plano B */
 }
 function imprimirProposta(p){

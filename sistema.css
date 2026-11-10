@@ -252,7 +252,7 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 @media (max-width:560px){.rep__lin--peca{grid-template-columns:repeat(2,minmax(0,1fr))}.rep__lin--peca .f--parc{grid-column:1/-1}}
 .miniaturas{display:flex;flex-wrap:wrap;gap:var(--s-8);grid-column:1/-1}
 .miniaturas img{width:64px;height:64px;object-fit:cover;background:var(--foto)}
-.miniaturas span{font-size:var(--t-leg);color:var(--tinta-2);padding:2px var(--s-8);background:var(--branco)}
+.miniaturas span{font-size:var(--t-leg);font-weight:400;letter-spacing:0;text-transform:none;color:var(--tinta-2);padding:2px var(--s-8);background:var(--branco)}
 .totais{display:flex;flex-wrap:wrap;gap:var(--s-8) var(--s-24);font-size:var(--t-ui);padding-top:var(--s-12)}
 .totais b{font-weight:600}
 
@@ -358,6 +358,19 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .pub__amb-topo{display:flex;align-items:center;justify-content:space-between;gap:var(--s-16);min-height:28px;font-size:var(--t-ui);font-weight:600;color:var(--tinta)}
 .pub__amb-topo .lnk{font-size:var(--t-leg);font-weight:400}
 .pub__mais{margin-top:var(--s-16)}
+/* Fotos do espaço no pedido pelo link (pedido da Isys, 2026-11-10): miniaturas quadradas, remover com toque de 44px */
+.pub__fotos{display:flex;flex-direction:column;align-items:flex-start;gap:var(--s-12)}
+.pub__minis{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:var(--s-8);width:100%}
+.pub__minis:empty{display:none}
+.pub__mini{position:relative;margin:0;aspect-ratio:1;overflow:hidden;background:var(--foto)}
+.pub__mini img{display:block;width:100%;height:100%;object-fit:cover}
+.pub__mini-x{position:absolute;top:0;right:0;display:grid;place-items:center;width:var(--toque);height:var(--toque);color:var(--tinta)}
+.pub__mini-x::before{content:"";position:absolute;inset:9px;border-radius:50%;background:var(--branco);box-shadow:0 0 0 1px var(--borda-card)}
+.pub__mini-x .ik{position:relative;width:14px;height:14px}
+.pub__mini-x:focus-visible{outline-offset:-4px}
+.pub__add-foto{display:inline-flex;align-items:center;gap:6px;min-height:var(--toque);cursor:pointer}
+.pub__add-foto .ik{width:14px;height:14px}
+.pub__add-foto:has(input:focus-visible){outline:2px solid var(--tinta);outline-offset:3px}
 @media (max-width:820px){.pub__envio{padding:var(--s-24) var(--s-16)}}
 
 /* Entrada (login) e acesso */
@@ -412,7 +425,7 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .sl .lock span,.sl .assina span{font-family:var(--f);font-weight:var(--w-nome);text-transform:uppercase;letter-spacing:var(--ls-tit);line-height:1;white-space:nowrap;color:#111111}
 .sl .lock{position:absolute;left:0;right:0;top:20.4cqw;display:flex;flex-direction:column;align-items:center;gap:2.4cqw}
 .sl .lock svg.simb{height:11cqw}
-.sl .lock span{font-size:1.7cqw;padding-left:var(--ls-tit)}
+.sl .lock span{font-size:1.805cqw;text-transform:none;letter-spacing:0;position:relative;left:-.02em} /* "produção" em minúsculas: o desenho das letras tem a largura do símbolo (11cqw × 96/148 = 7.135cqw) */
 /* Assinatura igual ao cabeçalho do site (.barra__logo): --n é o tamanho do nome; símbolo .9em, espaço .5em, nome .125em abaixo; sem risco */
 .sl .assina{--n:2cqw;position:absolute;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:calc(var(--n) * .5)}
 .sl .assina svg.simb{height:calc(var(--n) * .9);flex-shrink:0}

@@ -531,7 +531,8 @@ var ICO={
   trocar:'<path d="M4.5 12a7.5 7.5 0 0 1 13-5.1M19.5 12a7.5 7.5 0 0 1-13 5.1"/><path d="M17.5 3.5V7H14M6.5 20.5V17H10"/>',
   link:'<path d="M10.5 13.5a4 4 0 0 0 5.6 0l3-3a4 4 0 0 0-5.6-5.6l-1 1"/><path d="M13.5 10.5a4 4 0 0 0-5.6 0l-3 3a4 4 0 0 0 5.6 5.6l1-1"/>',
   calc:'<path d="M5.5 3.5h13v17h-13z"/><path d="M8.5 7.5h7M8.5 12h1M11.5 12h1M14.5 12h1M8.5 16h1M11.5 16h1M14.5 16h1"/>',
-  doc:'<path d="M14 3.5H5.5v17h13V8z"/><path d="M14 3.5V8h4.5"/>'
+  doc:'<path d="M14 3.5H5.5v17h13V8z"/><path d="M14 3.5V8h4.5"/>',
+  foto:'<rect x="3.5" y="4.5" width="17" height="15"/><circle cx="9" cy="9.5" r="1.75"/><path d="M3.5 16.5l5-4.5 4 3.5 3-2.5 5 4"/>'
 };
 function ikb(n){return '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+(ICO[n]||"")+'</svg>';}
 SIS.ICO=ICO; /* a mesma biblioteca vale para títulos de página, seções e modais (sis-modulos.js) */
@@ -858,13 +859,13 @@ function novaProposta(x){
   var c=cfg();
   return Object.assign({num:proxNum("propostas","P"),status:"nova",origem:"manual",criadaEm:agoraISO(),data:hoje(),
     cliente:{nome:"",empresa:"",codigo:"",telefone:"",email:"",local:""},clienteId:"",
-    finalidade:"foto",ambientes:[{nome:"",m2:"",fotos:[]}],temProjeto:true,arquivos:[],dataSugerida:"",mensagem:"",
+    finalidade:"foto",ambientes:[{nome:"",m2:"",fotos:[]}],fotos:[],temProjeto:true,arquivos:[],dataSugerida:"",mensagem:"",
     valor:0,valorManual:false,dias:2,ajudantes:1,contexto:"",tituloInvest:"",
     pagamento:c.proposta.pagamento,etapas:c.proposta.etapas,exclusoes:c.proposta.exclusoes,observacoes:c.proposta.observacoes,creditos:c.proposta.creditos},x||{});
 }
 function listaAmbientes(p){return (p.ambientes||[]).filter(function(a){return String(a.nome||"").trim();}).map(function(a){return a.nome+(num(a.m2)?" ("+fmtNum(a.m2)+" m²)":"");}).join(", ");}
 function msgAdm(p){
-  var fotos=(p.ambientes||[]).reduce(function(s,a){return s+(a.fotos||[]).length;},0);
+  var fotos=(p.ambientes||[]).reduce(function(s,a){return s+(a.fotos||[]).length;},(p.fotos||[]).length);
   var l=["*Novo pedido de proposta pelo "+(p.origem==="link"?"link":"site")+"* ("+p.num+")","",
     "Cliente: "+(p.cliente.nome||""),"WhatsApp: "+(p.cliente.telefone||""),"E-mail: "+(p.cliente.email||""),"Local: "+(p.cliente.local||""),
     "Finalidade: "+(FINALIDADES[p.finalidade]||""),"Ambientes: "+listaAmbientes(p),"Fotos enviadas: "+fotos,
@@ -898,13 +899,13 @@ function criarProposta(d){
   var fixo=d.pedidoId?"ped-"+d.pedidoId:null,link=d.origem==="link";
   if(fixo&&Store.get("propostas",fixo))return Promise.resolve({ok:true,id:fixo,num:Store.get("propostas",fixo).num});
   var x={nome:limpo(d.nome,120),telefone:limpo(d.telefone,40),email:limpo(d.email,120),local:limpo(d.local,160)};
-  var amb=(Array.isArray(d.ambientes)?d.ambientes:[]).slice(0,30).map(function(a){a=a||{};return {nome:limpo(a.nome,80)||"Ambiente",m2:limpo(a.m2,12),fotos:Array.isArray(a.fotos)?a.fotos:[]};});
+  var amb=(Array.isArray(d.ambientes)?d.ambientes:[]).slice(0,30).map(function(a){a=a||{};return {nome:limpo(a.nome,80)||"Ambiente",m2:limpo(a.m2,12),fotos:link?fotosLink(a.fotos):(Array.isArray(a.fotos)?a.fotos:[])};});
   if(!amb.length)amb=[{nome:"",m2:"",fotos:[]}];
   var cli=Store.list("clientes").find(function(c){return (x.email&&normal(c.email)===normal(x.email))||(soDig(x.telefone).length>7&&soDig(c.telefone)===soDig(x.telefone));});
   var pc=cli?Promise.resolve(cli.id):Store.salvar("clientes",fixo,{tipo:"PF",nome:x.nome,email:x.email,telefone:x.telefone,cidade:x.local,origem:"Pedido de proposta pelo "+(link?"link":"site"),criadoEm:agoraISO()});
   return pc.then(function(clienteId){
     var p=novaProposta({origem:link?"link":"site",clienteId:clienteId,cliente:{nome:x.nome,empresa:"",codigo:"",telefone:x.telefone,email:x.email,local:x.local},
-      finalidade:FINALIDADES[d.finalidade]?d.finalidade:"foto",ambientes:amb,temProjeto:!!d.temProjeto,arquivos:Array.isArray(d.arquivos)?d.arquivos:[],
+      finalidade:FINALIDADES[d.finalidade]?d.finalidade:"foto",ambientes:amb,fotos:link?fotosLink(d.fotos):(Array.isArray(d.fotos)?d.fotos:[]),temProjeto:!!d.temProjeto,arquivos:Array.isArray(d.arquivos)?d.arquivos:[],
       dataSugerida:/^\d{4}-\d{2}-\d{2}$/.test(d.dataSugerida||"")?d.dataSugerida:"",mensagem:limpo(d.mensagem,2000)});
     var r=calcular(p);p.valor=r.total;p.dias=r.dias;p.ajudantes=r.ajudantes;
     return Store.salvar("propostas",fixo,p).then(function(id){
@@ -1046,6 +1047,43 @@ function ambPub(n){
     '<div class="fgrid"><label class="f" for="'+a+'">Nome do ambiente *<input id="'+a+'" type="text" data-a="nome" placeholder="Ex.: sala de estar"></label>'+
     '<label class="f" for="'+b+'">Metragem (m²), se souber<input id="'+b+'" type="text" inputmode="decimal" data-a="m2" placeholder="Ex.: 18"></label></div></div>';
 }
+/* Fotos do espaço pelo link (pedido da Isys, 2026-11-10): todas juntas, num bloco só (não por ambiente).
+   O navegador reduz cada foto (lado maior até 2000 px, JPEG) e envia para a pasta privada "arquivos", em pedidos/.
+   Quem envia não lê nada; o adm vê as fotos na proposta (campo fotos). */
+var MAX_FOTOS=20,MAX_LADO_FOTO=2000;
+function reduzirFoto(f,url){
+  return new Promise(function(ok){
+    var img=new Image();
+    img.onload=function(){
+      var w=img.naturalWidth,h=img.naturalHeight,k=Math.min(1,MAX_LADO_FOTO/Math.max(w,h));
+      if(k===1&&f.type==="image/jpeg"&&f.size<=15e5){ok(f);return;}
+      var c=document.createElement("canvas");c.width=Math.max(1,Math.round(w*k));c.height=Math.max(1,Math.round(h*k));
+      var x=c.getContext("2d");x.fillStyle="#FFFFFF";x.fillRect(0,0,c.width,c.height);x.imageSmoothingQuality="high";x.drawImage(img,0,0,c.width,c.height);
+      c.toBlob(function(b){ok(b);},"image/jpeg",0.86);
+    };
+    img.onerror=function(){ok(null);};
+    img.src=url;
+  });
+}
+function subirFotoPedido(x){
+  var reg={nome:limpo(x.f.name,80)||"foto.jpg",tam:x.f.size};
+  if(!(Sessao.supa&&SB)){reg.nota="só o nome (modo demonstração)";return Promise.resolve(reg);}
+  return reduzirFoto(x.f,x.url).then(function(b){
+    if(!b){reg.nota="formato não aceito";return reg;}
+    var caminho="pedidos/"+uid()+".jpg";
+    return SB.storage.from("arquivos").upload(caminho,b,{contentType:"image/jpeg",upsert:false}).then(okSb)
+      .then(function(){reg.id="sb:"+caminho;reg.tipo="image/jpeg";reg.tam=b.size;return reg;})
+      .catch(function(){reg.nota="não foi possível enviar";return reg;});
+  });
+}
+/* Do link vem só o que o site gerou: no máximo 20 fotos, caminho pedidos/<id>.jpg */
+function fotosLink(l){
+  return (Array.isArray(l)?l:[]).slice(0,MAX_FOTOS).map(function(f){
+    f=f||{};var id=String(f.id||""),r={nome:limpo(f.nome,80)||"foto",tam:Math.max(0,num(f.tam)||0)};
+    if(/^sb:pedidos\/[\w-]{4,64}\.jpg$/.test(id)){r.id=id;r.tipo="image/jpeg";}else r.nota=limpo(f.nota,60)||"não enviada";
+    return r;
+  });
+}
 function pedidoPub(raiz){
   var fins=[["","— escolha —"]].concat(Object.keys(FINALIDADES).map(function(k){return [k,FINALIDADES[k]];}));
   raiz.innerHTML='<div class="pub"><header class="pub__topo"><a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, voltar ao site">'+logoSVG()+'</a><a class="lnk" href="#inicio">Voltar ao site</a></header>'+
@@ -1056,6 +1094,8 @@ function pedidoPub(raiz){
       blocoPub("producoes","A produção",[{k:"finalidade",r:"Finalidade",t:"select",o:fins,req:1},{k:"dataSugerida",r:"Data sugerida",t:"date"},
         {k:"temProjeto",r:"Tem projeto ou SketchUp?",t:"select",o:[["nao","Não"],["sim","Sim"]]},{k:"mensagem",r:"Mensagem",t:"area",full:1,ph:"Conte o que precisa, se quiser."}])+
       '<section class="sis-sec"><h2>'+ikb("ambiente")+'Ambientes</h2><div><div id="pb-ambs">'+ambPub(1)+'</div><button type="button" class="lnk pub__mais" data-add-amb>'+ikb("mais")+'Adicionar ambiente</button></div></section>'+
+      '<section class="sis-sec"><h2>'+ikb("foto")+'Fotos do espaço</h2><div class="pub__fotos" id="pb-fotos"><p class="nota" data-fotos-info>Opcional, até '+MAX_FOTOS+' fotos.</p><div class="pub__minis" data-minis></div>'+
+        '<label class="lnk pub__add-foto">'+ikb("foto")+'<span>Adicionar fotos</span><input class="vh" type="file" accept="image/*" multiple data-fotos></label></div></section>'+
       '<div class="pub__envio"><label class="chk"><input type="checkbox" id="pb-lgpd" required> Autorizo o uso destes dados para a proposta e o contato sobre o serviço (LGPD).</label><button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar pedido</button><p class="status" id="pb-status" role="status"></p></div></form>'+
     '<section class="sis-sec" id="pb-ok" hidden></section>'+
     '<p class="pub__pe">© 2026 Shylton Mavie</p></div>';
@@ -1064,6 +1104,26 @@ function pedidoPub(raiz){
   function renum(){$$("[data-amb]",caixa).forEach(function(a,i){$(".pub__amb-topo span",a).textContent="Ambiente "+(i+1);});}
   $("[data-add-amb]",raiz).addEventListener("click",function(){caixa.insertAdjacentHTML("beforeend",ambPub(caixa.children.length+1));$("[data-amb]:last-child input",caixa).focus();});
   caixa.addEventListener("click",function(e){var b=e.target.closest("[data-rem-amb]");if(b){b.closest("[data-amb]").remove();renum();}});
+  var fb=$("#pb-fotos",raiz),fotos=[];
+  function minis(){
+    $("[data-minis]",fb).innerHTML=fotos.map(function(x,i){return '<figure class="pub__mini"><img src="'+x.url+'" alt="Foto '+(i+1)+' do espaço"><button type="button" class="pub__mini-x" data-rem-foto="'+i+'" aria-label="Remover foto '+(i+1)+'">'+ikb("fechar")+'</button></figure>';}).join("");
+    $("[data-fotos-info]",fb).textContent=fotos.length?fotos.length+" de "+MAX_FOTOS+" fotos.":"Opcional, até "+MAX_FOTOS+" fotos.";
+    $(".pub__add-foto",fb).hidden=fotos.length>=MAX_FOTOS;
+  }
+  function soltar(){fotos.forEach(function(x){URL.revokeObjectURL(x.url);});fotos=[];}
+  fb.addEventListener("change",function(e){
+    var inp=e.target;if(!inp.hasAttribute("data-fotos"))return;
+    var fs=Array.prototype.slice.call(inp.files||[]).filter(function(f){return /^image\//.test(f.type)||/\.(jpe?g|png|webp|hei[cf])$/i.test(f.name);});
+    var cabe=Math.max(0,MAX_FOTOS-fotos.length);
+    fs.slice(0,cabe).forEach(function(f){fotos.push({f:f,url:URL.createObjectURL(f)});});
+    inp.value="";minis();
+    if(fs.length>cabe)toast("O pedido aceita até "+MAX_FOTOS+" fotos.");
+  });
+  fb.addEventListener("click",function(e){
+    var x=e.target.closest("[data-rem-foto]");if(!x)return;
+    var i=+x.getAttribute("data-rem-foto"),it=fotos.splice(i,1)[0];if(it)URL.revokeObjectURL(it.url);
+    minis();var prox=$$("[data-rem-foto]",fb)[Math.min(i,fotos.length-1)];(prox||$(".pub__add-foto input",fb)).focus();
+  });
   form.addEventListener("submit",function(e){
     e.preventDefault();
     var obrig=$$("[required]",form).concat([$('[data-amb] [data-a="nome"]',caixa)]);
@@ -1074,20 +1134,35 @@ function pedidoPub(raiz){
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)){st.className="status erro";st.textContent="Confira o e-mail: ele precisa ter o formato nome@dominio.com.";$('[data-k="email"]',form).focus();return;}
     var d={nome:v.nome,telefone:v.telefone,email:v.email,local:v.local,finalidade:v.finalidade,dataSugerida:v.dataSugerida,temProjeto:v.temProjeto==="sim",mensagem:v.mensagem,
       ambientes:$$("[data-amb]",caixa).map(function(a){return {nome:String($('[data-a="nome"]',a).value).trim(),m2:String($('[data-a="m2"]',a).value).trim()};}).filter(function(a){return a.nome||a.m2;}),
-      origem:"link",lgpd:true,criadoEm:agoraISO()};
+      fotos:[],origem:"link",lgpd:true,criadoEm:agoraISO()};
+    var total=fotos.length,feitas=0,falhas=0;
     var btn=$("button[type=submit]",form);btn.disabled=true;st.className="status";st.textContent="Enviando…";
     preparar().then(function(){
-      if(Sessao.supa&&Sessao.conta!=="adm")return SB.from(TAB).insert({colecao:"pedidos",id:uid(),dados:d}).then(okSb);
-      if(Store.modo==="db"&&Sessao.conta!=="adm")throw {code:"sem_permissao"};
-      return criarProposta(d);
+      var pub=Sessao.supa&&Sessao.conta!=="adm";
+      if(!pub&&Store.modo==="db"&&Sessao.conta!=="adm")throw {code:"sem_permissao"};
+      var fila=Promise.resolve();
+      fotos.forEach(function(x){fila=fila.then(function(){
+        st.textContent="Enviando foto "+(++feitas)+" de "+total+"…";
+        return subirFotoPedido(x).then(function(r){d.fotos.push(r);if(!r.id&&Sessao.supa)falhas++;});
+      });});
+      return fila.then(function(){
+        st.textContent="Enviando pedido…";
+        if(pub)return SB.from(TAB).insert({colecao:"pedidos",id:uid(),dados:d}).then(okSb);
+        return criarProposta(d);
+      });
     }).then(function(){
+      var env=Sessao.supa?total-falhas:0;
+      soltar();minis();
       form.hidden=true;var ok=$("#pb-ok",raiz);ok.hidden=false;
-      ok.innerHTML='<h2>'+ikb("ok")+'Pedido enviado</h2><div><p>Obrigado! Shylton Mavie entrará em contato em até 3 dias pelo WhatsApp ou e-mail que você informou. Fotos e projeto do ambiente podem ser enviados nessa conversa.</p>'+
+      ok.innerHTML='<h2>'+ikb("ok")+'Pedido enviado</h2><div><p>Obrigado! Shylton Mavie entrará em contato em até 3 dias pelo WhatsApp ou e-mail que você informou.'+
+        (env?' Recebemos '+env+' foto'+(env>1?'s':'')+' do espaço.':'')+' Projeto ou mais fotos do ambiente podem ser enviados nessa conversa.</p>'+
+        (falhas?'<p class="status erro">'+falhas+(falhas>1?' fotos não puderam ser enviadas. ':' foto não pôde ser enviada. ')+
+          '<a class="lnk" href="'+esc(waLink(PADRAO.whatsappAdm,"Olá, Shylton! Fiz um pedido de proposta pelo link e vou mandar as fotos do espaço por aqui."))+'" target="_blank" rel="noopener">'+ikb("whats")+'Mandar pelo WhatsApp ↗</a></p>':'')+
         (Store.modo==="local"?'<p class="nota">Demonstração: a proposta foi criada na área restrita deste navegador.</p>':'')+'</div>';
       window.scrollTo(0,0);
     },function(){
       btn.disabled=false;st.className="status erro";
-      var txt="Olá, Shylton! Quero pedir uma proposta de produção de ambiente.\nNome: "+d.nome+"\nLocal: "+d.local+"\nFinalidade: "+(FINALIDADES[d.finalidade]||"")+"\nAmbientes: "+d.ambientes.map(function(a){return a.nome+(a.m2?" ("+a.m2+" m²)":"");}).join(", ")+"\nData sugerida: "+(dataBR(d.dataSugerida)||"a combinar");
+      var txt="Olá, Shylton! Quero pedir uma proposta de produção de ambiente.\nNome: "+d.nome+"\nLocal: "+d.local+"\nFinalidade: "+(FINALIDADES[d.finalidade]||"")+"\nAmbientes: "+d.ambientes.map(function(a){return a.nome+(a.m2?" ("+a.m2+" m²)":"");}).join(", ")+"\nData sugerida: "+(dataBR(d.dataSugerida)||"a combinar")+(total?"\nFotos do espaço: mando por aqui.":"");
       st.innerHTML='Não foi possível enviar agora. <a class="lnk" href="'+esc(waLink(PADRAO.whatsappAdm,txt))+'" target="_blank" rel="noopener">'+ikb("whats")+'Mandar o pedido pelo WhatsApp ↗</a>';
     });
   });
