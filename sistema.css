@@ -124,20 +124,23 @@ a.sb__item:hover,button.sb__item:hover{color:var(--tinta);background:var(--hover
 .neg{color:var(--erro)}
 .vazio-sis{padding:var(--s-32) 0;color:var(--tinta-2);font-size:var(--t-corpo);border-top:1px solid var(--linha)}
 .sis-main .vazio-sis{padding:var(--s-32) var(--s-24);text-align:center;font-size:var(--t-ui);background:var(--apoio-sis);border:1px dashed var(--pedra);border-radius:var(--r-card)}
+/* Celular: cada linha vira uma ficha — título em cima, divisória e os dados em 2 colunas (rótulo pequeno sobre o valor) */
 @media (max-width:820px){
   .tab thead{display:none}
-  .tab,.tab tbody,.tab tr,.tab td{display:block;width:100%}
+  .tab,.tab tbody{display:block;width:100%}
   .tab{margin-top:0}
-  .tab tr{position:relative;margin-bottom:var(--s-8);padding:var(--s-12) var(--s-16);background:var(--apoio-sis);border:1px solid var(--borda-card);border-left:3px solid var(--c,var(--pedra));border-radius:var(--r-card)}
+  .tab tr{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-12) var(--s-16);margin-bottom:var(--s-12);padding:var(--s-16);background:var(--apoio-sis);border:1px solid var(--borda-card);border-left:3px solid var(--c,var(--pedra));border-radius:var(--r-card)}
   .tab tbody tr:nth-child(even){background:var(--zebra-sis)}
-  .tab td,.tab td:first-child,.tab td:last-child,.tab tbody tr:nth-child(even) td{border:0;border-radius:0;padding:2px 0;background:none}
-  .tab td:first-child{padding:0 var(--s-24) var(--s-4) 0}
+  .tab td,.tab td:first-child,.tab td:last-child,.tab tbody tr:nth-child(even) td{display:block;width:auto;min-width:0;border:0;border-radius:0;padding:0;background:none;overflow-wrap:anywhere}
+  .tab td:first-child,.tab td:first-child:last-child{grid-column:1/-1;padding:0 var(--s-32) var(--s-12) 0;border-bottom:1px solid var(--borda-card)}
   .tab tbody tr:hover td{background:none}
-  .tab td[data-r]:not(:first-child)::before{content:attr(data-r) " · ";color:var(--tinta-2);font-size:var(--t-leg)}
-  .tab .num{text-align:left}
+  .tab td[data-r]:not(:first-child)::before{content:attr(data-r);display:block;margin-bottom:2px;font-size:var(--t-mini);font-weight:600;line-height:1.4;letter-spacing:var(--ls-mini);text-transform:uppercase;color:var(--tinta-2)}
+  .tab td.sec{color:var(--tinta)}
+  .tab .num{text-align:left;white-space:normal}
   .tab small{display:inline;margin:0 0 0 var(--s-8)}
   .tab td:first-child small{display:block;margin:2px 0 0}
-  .tab__seta{position:absolute;top:var(--s-12);right:var(--s-12);width:auto}
+  .tab td:nth-child(even):nth-last-child(2){grid-column:1/-1} /* dado que sobra sozinho ocupa a linha inteira */
+  .tab__seta{position:absolute;top:var(--s-16);right:var(--s-12);width:auto}
 }
 
 /* Etiquetas de status */
@@ -339,7 +342,7 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .proximos{margin-top:var(--s-24)}
 @media (max-width:520px){
   .cal__dia{min-height:56px;padding:var(--s-4)}
-  .ev{font-size:0;height:6px;padding:0;border-left:0;background:var(--evc,var(--marca))}
+  .ev{font-size:0;height:18px;padding:6px 0;border-left:0;background:var(--evc,var(--marca)) content-box} /* traço de 6px, área de toque de 18px */
   .cal__dow{padding:var(--s-8) var(--s-4);letter-spacing:0}
 }
 
@@ -495,19 +498,112 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
   .sb-veu{display:block;position:fixed;inset:0;z-index:44;background:var(--veu);animation:entra var(--rapido) ease both}
   .sb-veu[hidden]{display:none}
 }
+/* ==========================================================
+   CELULAR (até 820px): experiência própria, não o desktop encolhido (pedido da Isys, 2026-11-10)
+   • Cabeçalho na ordem de leitura: título → descrição → ações (botões na largura toda)
+   • Editores: Salvar fixo no rodapé, sempre à mão
+   • Indicadores em lista (ícone, rótulo, valor alinhado à direita); listas em fichas
+   • Janelas de cadastro em tela cheia, rodapé com Cancelar | Salvar
+   • Toda área de toque com 44px
+   ========================================================== */
+@keyframes entra-o{from{opacity:0}}
 @media (max-width:820px){
+  html{scroll-padding-bottom:calc(var(--toque) + var(--s-48))} /* campo em foco não fica atrás do Salvar fixo */
+  .sis-main{animation-name:entra-o} /* sem deslocamento: o Salvar fixo fica preso à tela desde o início */
+
+  /* Cabeçalho */
+  .sis-cab{gap:var(--s-12);padding-block:var(--s-24)}
+  .sis-cab__lin{display:contents}
+  .sis-voltar{display:inline-flex;align-items:center;min-height:var(--toque);margin-block:calc(var(--s-12) * -1) calc(var(--s-4) * -1)}
+  .sis-cab h1{order:1}
+  .sis-cab__sub{order:2}
+  .sis-ferr{order:3;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:flex-start;gap:var(--s-12);width:100%;padding-top:var(--s-4)}
+  .sis-ferr > *{flex:1 1 140px;max-width:100%}
+  .sis-ferr > .f,.sis-ferr > .acoes,.sis-ferr > .cal-nav{flex-basis:100%;min-width:0!important}
+  .sis-ferr > .btn--escuro{order:-1} /* ação principal primeiro */
+  .sis-ferr .btn,.sis-ferr .sis-sel,.sis-ferr .sis-sel select,.sis-ferr .sis-sel input{width:100%}
+  .sis-ferr > .acoes{min-height:0;gap:var(--s-12)}
+  .sis-ferr > .acoes > .btn{flex:1 1 0}
+  .sis-ferr > .acoes > .lnk{order:1;flex-basis:100%}
+  /* Salvar dos editores (proposta, contrato, produção, ajustes) fixo no rodapé, com faixa branca e fio em cima */
+  .sis-ferr [data-salvar]{position:fixed;z-index:25;left:var(--g-l);right:var(--g-r);bottom:calc(var(--s-16) + env(safe-area-inset-bottom,0px));width:auto;
+    box-shadow:0 0 0 var(--s-16) var(--branco),0 0 0 calc(var(--s-16) + 1px) var(--borda-card),0 calc(var(--s-16) + env(safe-area-inset-bottom,0px)) 0 var(--s-16) var(--branco)}
+  .sis-main:has(.sis-ferr [data-salvar]){padding-bottom:calc(var(--s-64) + var(--toque) + var(--s-32))}
+
+  /* Seções, cartões e editores */
   .sis-sec,.rev__item{grid-template-columns:minmax(0,1fr)}
-  .sis-sec{padding:var(--s-24) var(--s-16);gap:var(--s-16)}
+  .sis-sec{padding:var(--s-24) var(--s-16);gap:var(--s-16);margin-bottom:var(--s-16)}
+  .sis-sec > h2 small{max-width:none}
+  .ed{gap:var(--s-24)}
   .ed__bloco{padding:var(--s-16)}
-  .sis-ferr{justify-content:flex-start}
+  .ed__bloco > h2{margin-bottom:var(--s-16)}
+  .ed__bloco > h2 small{display:block;margin:var(--s-4) 0 0}
+  .fgrid,.chks{grid-template-columns:minmax(0,1fr)}
+  .chk{min-height:var(--toque)}
+  .rep__lin:not(.rep__lin--peca){grid-template-columns:minmax(0,1fr) auto!important} /* 1º campo na linha toda; 2º campo e Remover embaixo */
+  .rep__lin:not(.rep__lin--peca) > :first-child{grid-column:1/-1}
+  .abas-mini button,.sis button.lnk,.modal button.lnk{min-height:var(--toque)}
+  .ev__tit{padding-block:var(--s-12);margin-block:calc(var(--s-12) * -1)}
+  .sis p:has(> button.lnk){display:flex;flex-wrap:wrap;align-items:center;column-gap:var(--s-16)} /* "Adicionar …" e "Cadastrar …": cada link inteiro, sem quebrar no meio */
+  .sis p:has(> button.lnk) > .lnk{display:inline-flex;align-items:center;min-height:var(--toque);margin:0!important}
+  .acoes > .lnk,.sis-sec > h2 .lnk,.pub__topo .lnk,.entrada__pe .lnk,.sis-link .lnk{display:inline-flex;align-items:center;min-height:var(--toque);margin-block:0}
+
+  /* Filtros */
   .sis-barra > *,.sis-barra > .acoes > *,.sis-busca{width:100%}
   .sis-sel select{width:100%}
   .pil{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:auto}
   .pil::-webkit-scrollbar{display:none}
   .sis-ord{width:100%}
-  .kpi{padding:var(--s-12) var(--s-16) var(--s-16)}
-  .kpi__chip{border-radius:var(--r-ctl)}
-  .fgrid,.chks{grid-template-columns:minmax(0,1fr)}
+
+  /* Indicadores: uma linha por número — ícone | rótulo e atalho | valor */
+  .kpis{grid-template-columns:minmax(0,1fr);gap:var(--s-8);padding-bottom:var(--s-24)}
+  .kpi{display:grid;grid-template-columns:28px minmax(0,1fr) auto;grid-template-areas:"ico r v" "ico chip v";align-items:center;gap:var(--s-4) var(--s-12);padding:var(--s-12) var(--s-16)}
+  .kpi__topo{display:contents}
+  .kpi__ico{grid-area:ico}
+  .kpi__r{grid-area:r;padding-top:0}
+  .kpi__v{grid-area:v;justify-self:end;text-align:right;white-space:nowrap}
+  .kpi__chip{grid-area:chip;justify-self:start;margin-top:0}
+
+  /* Links de cadastro e pedido (Clientes, Propostas) */
+  .sis-link{padding:var(--s-16);gap:var(--s-12);margin-bottom:var(--s-16)}
+  .sis-link > .acoes{width:100%;justify-content:space-between;gap:var(--s-12)}
+  .sis-link > .acoes > .btn{flex:1 1 auto}
+  .sis-link__url{padding-top:var(--s-12);font-size:var(--t-leg)}
+
+  /* Financeiro: Entrada | Saída lado a lado; exportar embaixo */
+  .sis-avulso > .btn{flex:1 1 0}
+  .sis-avulso [data-csv]{flex-basis:100%;margin-left:0}
+
+  /* Tarefas */
+  .k-filtro{padding:var(--s-16);gap:var(--s-12);margin-bottom:var(--s-16)}
+  .k-filtro .f{width:100%}
+  .kcol{padding:0 var(--s-12) var(--s-12)}
+  .kcard__pe button{min-width:var(--toque);min-height:var(--toque);margin-block:calc(var(--s-8) * -1)}
+  .kcard__pe > span:last-child{display:flex;margin-right:calc(var(--s-12) * -1)}
+
+  /* Calendário: ‹ mês › Hoje numa linha só */
+  .cal-nav{display:grid;grid-template-columns:var(--toque) minmax(0,1fr) var(--toque) auto;gap:var(--s-8);align-items:center}
+  .cal-nav b{min-width:0;text-align:center}
+  .cal-nav [data-mes="-1"],.cal-nav [data-mes="1"]{justify-content:center;width:var(--toque);padding:0;font-size:0} /* só a seta; o nome continua para leitores de tela */
+  .cal-nav [data-mes="-1"] .ik,.cal-nav [data-mes="1"] .ik{width:16px;height:16px}
+  .item--ev .ev__data small{display:inline;margin:0 0 0 var(--s-8)}
+
+  /* Janelas: tela cheia; rodapé com Excluir na linha toda e Cancelar | Salvar embaixo */
+  .modal:not(.modal--conf){inset:0;width:100%;max-width:100%;height:100vh;height:100dvh;max-height:none;margin:0;box-shadow:none}
+  .modal__cab{padding:calc(var(--s-16) + env(safe-area-inset-top,0px)) var(--s-16) var(--s-12)}
   .modal__corpo{padding:var(--s-16)}
-  .modal__cab,.modal__pe{padding-left:var(--s-16);padding-right:var(--s-16)}
+  .modal__pe{gap:var(--s-12);padding:var(--s-12) var(--s-16) calc(var(--s-12) + env(safe-area-inset-bottom,0px))}
+  .modal__pe > *{flex:1 1 0}
+  .modal__pe .btn{padding-inline:var(--s-12)}
+  .modal__pe .esq{flex-basis:100%;margin-right:0}
+  .modal__pe > .lnk{display:inline-flex;align-items:center;min-height:var(--toque)}
+
+  /* Entrada (login) */
+  .entrada{margin-top:var(--s-32)}
+  .entrada .acoes .btn{width:100%}
+}
+@media (max-width:340px){
+  /* telas bem estreitas: o valor do indicador desce para baixo do rótulo */
+  .kpi{grid-template-columns:28px minmax(0,1fr);grid-template-areas:"ico r" "ico v" "ico chip"}
+  .kpi__v{justify-self:start;text-align:left}
 }
