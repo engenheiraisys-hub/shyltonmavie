@@ -1,17 +1,50 @@
-/* Área restrita · documentos: proposta (modelo MATO, PDF), contrato revisado (.docx) e revisão jurídica */
+/* Área restrita · documentos: proposta (PDF, com símbolo e nome Shylton Mavie), contrato revisado (.docx) e revisão jurídica */
 (function(){
 "use strict";
 var S=window.SIS,esc=S.esc,num=S.num;
 
 /* ================= PROPOSTA ================= */
-var MATO='<svg viewBox="-4 -4 222 222" aria-hidden="true"><g fill="none" stroke="#111" stroke-width="3.4"><path d="M4 100V2L50 68L96 2V100"/><path d="M112 100L162 4L212 100M126.6 70H197.4"/><path d="M8 116H86M47 116V212"/></g><circle cx="161" cy="163" r="50" fill="#111"/></svg>';
-function mato(){return '<div class="mato">'+MATO+'<span class="sl__prod">produção</span></div>';}
-var PINO='<svg class="pino" viewBox="0 0 20 46" aria-hidden="true"><circle cx="10" cy="8" r="6" fill="none" stroke="#111" stroke-width="3"/><path d="M10 14V46" stroke="#111" stroke-width="3"/></svg>';
-var OBJETIVO={mostra:"qualificar a exposição do projeto e a funcionalidade dos ambientes",foto:"preparar os ambientes para o registro fotográfico do projeto, com composição e acabamento pensados para a câmera",cliente:"deixar os ambientes prontos para o dia a dia, com identidade, conforto e funcionalidade"};
+/* Identidade do site (pedido da Isys, 2026-11-09): a bola e o nome MATO saíram; entram o símbolo e o nome SHYLTON MAVIE.
+   Mesmos desenhos de #g-simb (cheio) e #g-simb-v (vazado, para tamanhos pequenos ao lado do nome) do index.html.
+   SVG em linha e nome em HTML (não <text>) para o html2canvas desenhar igual no PDF. */
+var SIMB='<svg class="simb" viewBox="0 0 96 148" aria-hidden="true"><circle cx="48" cy="36" r="36"/><rect x="0" y="82" width="96" height="4"/><rect x="22" y="84" width="4" height="64"/><rect x="70" y="84" width="4" height="64"/></svg>';
+var SIMB_V='<svg class="simb" viewBox="0 0 96 148" aria-hidden="true"><path fill-rule="evenodd" d="M48 0a36 36 0 1 1 0 72a36 36 0 1 1 0-72zM48 8a28 28 0 1 0 0 56a28 28 0 1 0 0-56z"/><rect x="0" y="80" width="96" height="8"/><rect x="20" y="84" width="8" height="64"/><rect x="68" y="84" width="8" height="64"/></svg>';
+var NOME="Shylton Mavie";
+/* assinatura horizontal igual à do site: símbolo e nome, sem risco entre eles (pedido da Isys, 2026-11-10);
+   proporção do cabeçalho do site: símbolo com 0,9 da altura da letra e espaço de meia letra */
+function assinatura(cl){return '<div class="assina '+(cl||"")+'">'+SIMB_V+'<span>'+NOME+'</span></div>';}
+var OBJETIVO={mostra:"qualificar a exposição do projeto e a funcionalidade dos ambientes",foto:"preparar os ambientes para o registro fotográfico do projeto, com composição e acabamento pensados para a câmera",marcas:"apresentar os produtos da marca ou da loja em ambientes que valorizem a exposição e a venda",cliente:"deixar os ambientes prontos para o dia a dia, com identidade, conforto e funcionalidade"};
 function dataProposta(iso){var p=String(iso||"").split("-").map(Number);if(p.length<3||!p[0])return "";return S.pad(p[2])+" / "+S.MESES[p[1]-1].toUpperCase()+" / "+p[0];}
 function telModelo(t){var d=S.soDig(t);if(d.length===13)return "+ "+d.slice(0,2)+" "+d.slice(2,4)+" "+d.slice(4,5)+" "+d.slice(5,9)+"-"+d.slice(9);return t||"";}
 function telCurto(t){var d=S.soDig(t);if(d.length>=11){d=d.slice(-11);return "("+d.slice(0,2)+") "+d.slice(2,3)+" "+d.slice(3,7)+"-"+d.slice(7);}return t||"";}
 function nomesAmbientes(p){return (p.ambientes||[]).map(function(a){return String(a.nome||"").trim();}).filter(Boolean);}
+
+/* Portfólio (pedido da Isys, 2026-11-10): produções do site com fotos, antes do investimento.
+   Escolhidas na proposta (p.portfolio = slugs, até 6); sem escolha, entram 4 da categoria ligada à finalidade.
+   Fotos em background-image (o html2canvas não respeita object-fit). */
+var CAT_FINALIDADE={mostra:"Mostra",foto:"Residencial",marcas:"Comercial",cliente:"Residencial"};
+var MAX_PORT=6;
+function projetosSite(){return window.SM_PROJETOS||[];}
+function portfolioSel(p){
+  if(p.semPortfolio)return [];
+  var todos=projetosSite(),por={};todos.forEach(function(x){por[x.slug]=x;});
+  var esc_=(p.portfolio||[]).map(function(s){return por[s];}).filter(Boolean);
+  if(esc_.length)return esc_.slice(0,MAX_PORT);
+  var cat=CAT_FINALIDADE[p.finalidade]||"Residencial";
+  return todos.filter(function(x){return x.cat===cat;}).concat(todos.filter(function(x){return x.cat!==cat;})).slice(0,4);
+}
+function fotoPort(u,foco){return '<div class="port__f" style="background-image:url(\''+esc(u)+'\')'+(foco?';background-position:'+esc(foco):'')+'"></div>';}
+function slidesPortfolio(p,n){
+  var sel=portfolioSel(p);if(!sel.length)return "";
+  return '<section class="sl sl--abre"><p class="sl__h"><b>'+n+'</b>PORTFÓLIO</p><p class="sl__sub">/ Produções de Shylton Mavie</p></section>'+
+    sel.map(function(x){
+      var fs=[x.capa].concat((x.galeria||[]).filter(function(g){return g!==x.capa;})).slice(0,3);
+      var info=[x.evento||x.local,x.projeto?"Projeto "+x.projeto:"",x.fotos?"Fotos "+x.fotos:""].filter(Boolean).join("  ·  ");
+      return '<section class="sl sl--port" role="img" aria-label="'+esc(x.nome)+'"><p class="port__rot">'+SIMB_V+'PORTFÓLIO</p>'+
+        '<div class="port__fotos port__fotos--'+fs.length+'">'+fs.map(function(f,i){return fotoPort(f,i?"":x.foco);}).join("")+'</div>'+
+        '<div class="port__leg"><p class="port__nome">'+esc(String(x.nome||"").toUpperCase())+'</p><p class="port__info">'+esc(info)+'</p></div></section>';
+    }).join("");
+}
 
 function slidesHTML(p){
   var c=S.cfg().contratado,cli=p.cliente||{},ambs=nomesAmbientes(p);
@@ -21,10 +54,11 @@ function slidesHTML(p){
   var obs=String(p.observacoes||"").split(/\n+/).map(function(s){return s.trim();}).filter(Boolean);
   var tituloInv=p.tituloInvest||((ambs.join(", ")||"Ambientes")+(cli.empresa?" "+cli.empresa:"")+(cli.nome?" - "+cli.nome:""));
   var intro="Apresentamos as condições para a produção de ambiente dos ambientes mencionados na proposta"+(p.contexto?" "+p.contexto.replace(/\.$/,""):"")+".<br>O objetivo é "+(OBJETIVO[p.finalidade]||OBJETIVO.foto)+".";
+  var port=slidesPortfolio(p,"01"),nInv=port?"02":"01";
   return ''+
-  '<section class="sl sl--capa"><span class="sl__bola"></span><span class="sl__prod">produção</span></section>'+
-  '<section class="sl sl--marca">'+mato()+'<p class="sl__rod"><i></i>/ '+esc(cli.nome||"Cliente")+'<small>Arquiteto, Urbanista e Produtor Shylton Mavie, '+esc(String(p.data||S.hoje()).slice(0,4))+'</small></p></section>'+
-  '<section class="sl sl--dados"><span class="sl__bola"></span><div class="sl__col">'+
+  '<section class="sl sl--capa"><div class="lock">'+SIMB+'<span>'+NOME+'</span></div></section>'+
+  '<section class="sl sl--marca">'+assinatura()+'<p class="sl__rod">'+SIMB+'/ '+esc(cli.nome||"Cliente")+'<small>Arquiteto, Urbanista e Produtor Shylton Mavie, '+esc(String(p.data||S.hoje()).slice(0,4))+'</small></p></section>'+
+  '<section class="sl sl--dados"><span class="sl__simb">'+SIMB+'</span><div class="sl__col">'+
     '<p class="t">'+esc(titulo)+(cli.codigo?'<br>'+esc(cli.codigo.toUpperCase()):'')+'</p>'+
     '<p class="t">'+esc(S.FINALIDADE_CAPS[p.finalidade]||"PRODUÇÃO")+'<small>Produção de Ambiente</small></p>'+
     '<p class="t">ETAPAS<small>'+esc(p.etapas||"")+'</small></p>'+
@@ -32,15 +66,16 @@ function slidesHTML(p){
     '<p class="t">'+esc(dataProposta(p.data))+'</p>'+
     '<p class="t t--min">'+esc(telModelo(c.telefone))+'<br>'+esc(c.instagram||"")+'<br>'+esc(c.email||"")+'</p>'+
   '</div></section>'+
-  '<section class="sl sl--escopo"><span class="sl__bola"></span><div class="sl__txt"><p>'+intro.split("<br>").map(esc).join("<br>")+'</p>'+
+  '<section class="sl sl--escopo"><span class="sl__simb">'+SIMB+'</span><div class="sl__txt"><p>'+intro.split("<br>").map(esc).join("<br>")+'</p>'+
     '<p><b>Escopo e Metodologia:</b></p><ul><li>Produção completa de todos os ambientes da proposta.</li><li>Organização estética dos elementos.</li>'+
     '<li>Prazo de Execução: Média de <b>'+S.pad(dias)+' dia'+(dias>1?'s':'')+'</b>.</li>'+
     '<li>Logística: O serviço será realizado com o suporte operacional de '+aj+' ajudante'+(aj>1?'s':'')+' (dependendo da demanda).</li></ul>'+
     '<p><b>Exclusões</b>: '+esc(String(p.exclusoes||"").replace(/^Exclusões:\s*/i,""))+'</p></div></section>'+
-  '<section class="sl sl--abre"><p class="sl__h"><b>01</b>INVESTIMENTO</p><p class="sl__sub">/ '+esc(tituloInv)+'</p></section>'+
-  '<section class="sl sl--valor">'+mato()+'<div class="sl__cen"><p class="k1">PRODUÇÃO</p>'+PINO+'<p class="k2">INVESTIMENTO</p><p class="rs">R$'+esc(S.fmtValor(p.valor))+'</p><p class="k3">FORMA DE PAGAMENTO:</p><p class="k4">'+esc(p.pagamento||"")+'</p></div>'+
+  port+
+  '<section class="sl sl--abre"><p class="sl__h"><b>'+nInv+'</b>INVESTIMENTO</p><p class="sl__sub">/ '+esc(tituloInv)+'</p></section>'+
+  '<section class="sl sl--valor">'+assinatura()+'<div class="sl__cen"><p class="k1">PRODUÇÃO</p><span class="pino">'+SIMB_V+'</span><p class="k2">INVESTIMENTO</p><p class="rs">R$'+esc(S.fmtValor(p.valor))+'</p><p class="k3">FORMA DE PAGAMENTO:</p><p class="k4">'+esc(p.pagamento||"")+'</p></div>'+
     '<div class="obs"><h3>OBSERVAÇÕES:</h3>'+obs.map(function(o){return '<p>- '+esc(o)+'</p>';}).join("")+(p.creditos?'<p class="cred">- '+esc(p.creditos)+'</p>':'')+'</div></section>'+
-  '<section class="sl sl--fim"><p class="sl__h">obrigado!</p><div class="sl__ct"><span>Email: '+esc(c.email||"")+'</span><span>'+esc(c.instagram||"")+'</span><span>'+esc(c.cidade||"")+'</span><span>'+esc(telCurto(c.telefone))+'</span></div><span class="sl__bola"></span></section>';
+  '<section class="sl sl--fim"><p class="sl__h">obrigado!</p><div class="sl__ct"><span>Email: '+esc(c.email||"")+'</span><span>'+esc(c.instagram||"")+'</span><span>'+esc(c.cidade||"")+'</span><span>'+esc(telCurto(c.telefone))+'</span></div>'+assinatura("assina--pe")+'</section>';
 }
 function nomeArq(s){return S.normal(s).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,60)||"documento";}
 function carregar(src){
@@ -71,8 +106,8 @@ function propostaPDF(p){
       }
       return prox().then(function(){return pdf.output("blob");});
     })
-    .then(function(blob){fim();var cli=p.cliente||{};return S.salvarArquivo((cli.nome||"cliente").toUpperCase()+" - PROPOSTA PRODUÇÃO - MATO PRODUÇÃO - "+String(p.data||S.hoje()).split("-").reverse().join("")+".pdf",blob);})
-    .catch(function(e){fim();if(window.console)console.error(e);S.toast("Não foi possível gerar o PDF aqui. Use Imprimir e escolha Salvar como PDF.");});
+    .then(function(blob){fim();var cli=p.cliente||{};return S.salvarArquivo((cli.nome||"cliente").toUpperCase()+" - PROPOSTA PRODUÇÃO - SHYLTON MAVIE - "+String(p.data||S.hoje()).split("-").reverse().join("")+".pdf",blob);})
+    .catch(function(e){fim();if(window.console)console.error(e);S.toast("Não foi possível gerar o PDF aqui. Na janela de impressão, escolha Salvar como PDF.");imprimirProposta(p);}); /* sem botão Imprimir: a impressão só entra como plano B */
 }
 function imprimirProposta(p){
   var box=document.createElement("div");box.className="sl-print";box.innerHTML=slidesHTML(p);document.body.appendChild(box);
@@ -83,7 +118,7 @@ function imprimirProposta(p){
 }
 
 /* ================= CONTRATO ================= */
-var FIN_CONTRATO={foto:"preparar os ambientes para registro fotográfico",mostra:"expor os ambientes em mostra, evento ou exposição",cliente:"uso dos ambientes pelo próprio CONTRATANTE (cliente final)"};
+var FIN_CONTRATO={foto:"preparar os ambientes para registro fotográfico",mostra:"expor os ambientes em mostra, evento ou exposição",marcas:"ambientar espaços de marcas e lojas para a exposição e a venda de produtos",cliente:"uso dos ambientes pelo próprio CONTRATANTE, em área privativa ou em áreas comuns"};
 var A="⟦",F="⟧";
 function falta(r){return A+r+F;}
 function v(x,r){x=x==null?"":String(x).trim();return x?x:falta(r);}
@@ -96,6 +131,14 @@ function enderecoCli(c){
   if(c.cep)s+=(s?", ":"")+"CEP "+c.cep;
   return s;
 }
+/* O que falta do cliente para a qualificação do contrato sair completa. MESMAS regras de qualifContratante:
+   a lista de Clientes ("completos/incompletos") e o cadastro usam esta função, para nunca dizer completo quando o contrato sai com lacunas. */
+function faltaCliente(c){
+  if(!c)return ["cliente"];
+  var req=c.tipo==="PJ"?[["nome","razão social"],["doc","CNPJ"],["end","endereço"],["representante","representante legal"],["repCpf","CPF do representante"],["email","e-mail"],["telefone","telefone"]]
+    :[["nome","nome"],["nacionalidade","nacionalidade"],["estadoCivil","estado civil"],["profissao","profissão"],["doc","CPF"],["end","endereço"],["email","e-mail"],["telefone","telefone"]];
+  return req.filter(function(r){var x=r[0]==="end"?enderecoCli(c):c[r[0]];return !String(x==null?"":x).trim();}).map(function(r){return r[1];});
+}
 function qualifContratante(c){
   if(!c)return falta("dados do contratante: escolha um cliente");
   if(c.tipo==="PJ"){
@@ -106,7 +149,7 @@ function qualifContratante(c){
     (c.rg?", portador(a) do RG nº "+c.rg:"")+", residente e domiciliado(a) em "+v(enderecoCli(c),"endereço completo")+", e-mail "+v(c.email,"e-mail")+", telefone "+v(c.telefone,"telefone")+".";
 }
 function qualifContratado(k){
-  return v(k.nome,"nome do contratado")+", "+v(k.nacionalidade,"nacionalidade")+", "+v(k.profissao,"profissão")+", inscrito no CAU sob o nº "+v(k.cau,"registro CAU")+", inscrito no CPF sob o nº "+v(k.cpf,"CPF do contratado")+
+  return v(k.nome,"nome do contratado")+", "+v(k.nacionalidade,"nacionalidade")+", "+v(k.profissao,"profissão")+", inscrito no CAU sob o nº "+v(k.cau,"registro CAU")+", inscrito no CPF sob o nº "+v(k.cpf,"CPF do contratado")+(k.cnpj?" e no CNPJ sob o nº "+k.cnpj:"")+
     ", com endereço profissional em "+v(k.endereco,"endereço profissional")+", e-mail "+v(k.email,"e-mail")+", telefone "+v(k.telefone,"telefone")+", que atua sob a marca "+v(k.marca,"marca")+".";
 }
 function formaPagamento(c){
@@ -121,7 +164,7 @@ function contexto(ct){
   var prop=ct.propostaId?S.Store.get("propostas",ct.propostaId):null;
   var dias=Math.max(1,Math.round(num(c.dias)||1));
   return {
-    marca:(k.marca||"MATO Produção").toUpperCase(),
+    marca:NOME.toUpperCase(), /* cabeçalho = assinatura do site; a marca de Ajustes vai na qualificação do contratado */
     numero:v(ct.num,"número"),
     contratante:qualifContratante(cli),
     contratado:qualifContratado(k),
@@ -145,7 +188,7 @@ function contexto(ct){
     instagram:k.instagram||"@shyltu",
     nomeCli:cli?v(cli.nome,"nome do contratante"):falta("nome do contratante"),
     docCli:cli?(cli.tipo==="PJ"?"CNPJ ":"CPF ")+v(cli.doc,cli.tipo==="PJ"?"CNPJ":"CPF"):"",
-    nomeK:v(k.nome,"nome do contratado"),cpfK:"CPF "+v(k.cpf,"CPF do contratado")
+    nomeK:v(k.nome,"nome do contratado"),cpfK:"CPF "+v(k.cpf,"CPF do contratado")+(k.cnpj?" · CNPJ "+k.cnpj:"")
   };
 }
 /* Modelo revisado. **negrito**; {chave} vem do contexto. */
@@ -214,10 +257,33 @@ var MODELO=[
  ["centro","{cidade}, {data}."],
  ["assin",""],
  ["h","ANEXO I — Proposta Comercial nº {proposta}"],
- ["p","Anexar a proposta aprovada pelo CONTRATANTE."],
+ ["anexo1",""],
  ["h","ANEXO II — Inventário de peças"],
  ["p","Preenchido e assinado na montagem: peça, fornecedor, quantidade, estado na entrada, valor de reposição e estado na saída."]
 ];
+/* Anexo I: a proposta escolhida no contrato entra inteira, com os mesmos dados do PDF da proposta (pedido da Isys, 2026-11-09).
+   Blocos: ["p",texto] parágrafo · ["sub",texto] subtítulo · ["li",texto] item de lista. O texto do usuário não passa por preencher(). */
+function anexoI(ct){
+  var p=ct.propostaId?S.Store.get("propostas",ct.propostaId):null;
+  if(!p)return [["p",falta("proposta aprovada pelo CONTRATANTE: escolha a proposta no contrato")]];
+  var cli=p.cliente||{},ambs=nomesAmbientes(p),dias=Math.max(1,Math.round(num(p.dias)||1)),aj=Math.max(1,Math.round(num(p.ajudantes)||1));
+  var cap=function(s){s=String(s||"").trim().replace(/^[-–•]\s*/,"");return s.charAt(0).toUpperCase()+s.slice(1);};
+  var obs=String(p.observacoes||"").split(/\n+/).map(cap).filter(Boolean),exc=cap(String(p.exclusoes||"").replace(/^Exclusões:\s*/i,""));
+  var dt=String(p.data||p.criadaEm||"").slice(0,10);
+  var l=[["p","**Cliente:** "+([cli.nome,cli.empresa].filter(Boolean).join(" · ")||"—")+(cli.codigo?" ("+cli.codigo+")":"")]];
+  if(dt)l.push(["p","**Data da proposta:** "+S.dataBR(dt)]);
+  l.push(["p","**Finalidade:** "+(S.FINALIDADES[p.finalidade]||"Produção de ambiente")+" · Produção de Ambiente"]);
+  if(p.etapas)l.push(["p","**Etapas:** "+p.etapas]);
+  l.push(["p","**Ambientes considerados na proposta:** "+(ambs.join(", ")||"—")]);
+  l.push(["p","Apresentamos as condições para a produção de ambiente dos ambientes mencionados na proposta"+(p.contexto?" "+String(p.contexto).replace(/\.$/,""):"")+". O objetivo é "+(OBJETIVO[p.finalidade]||OBJETIVO.foto)+"."]);
+  l.push(["sub","Escopo e metodologia"],["li","Produção completa de todos os ambientes da proposta."],["li","Organização estética dos elementos."],
+    ["li","Prazo de execução: média de "+S.pad(dias)+" dia"+(dias>1?"s":"")+"."],["li","Logística: suporte operacional de "+aj+" ajudante"+(aj>1?"s":"")+" (dependendo da demanda)."]);
+  if(exc)l.push(["p","**Exclusões:** "+exc]);
+  l.push(["p","**Investimento:** "+S.brl(p.valor)+(p.tituloInvest?" · "+p.tituloInvest:"")]);
+  if(p.pagamento)l.push(["p","**Forma de pagamento:** "+p.pagamento]);
+  if(obs.length||p.creditos){l.push(["sub","Observações"]);obs.forEach(function(o){l.push(["li",o]);});if(p.creditos)l.push(["li",cap(p.creditos)]);}
+  return l;
+}
 function preencher(t,ctx){return t.replace(/\{(\w+)\}/g,function(_,k){return ctx[k]!=null?ctx[k]:falta(k);});}
 function htmlTexto(t){
   return esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(new RegExp(A+"(.+?)"+F,"g"),'<mark>[$1]</mark>');
@@ -226,11 +292,16 @@ function contratoHTML(ct){
   var ctx=contexto(ct);
   return '<article class="folha">'+MODELO.map(function(b){
     var t=preencher(b[1],ctx);
-    if(b[0]==="marca")return '<p class="marca">'+htmlTexto(t)+'</p>';
+    if(b[0]==="marca")return '<div class="marca">'+SIMB_V+'<span>'+esc(NOME)+'</span></div>';
     if(b[0]==="titulo")return '<h1>'+htmlTexto(t)+'</h1>';
     if(b[0]==="centro")return '<p class="centro">'+htmlTexto(t)+'</p>';
     if(b[0]==="h")return '<h2'+(/^ANEXO I —/.test(t)?' class="anexo"':'')+'>'+htmlTexto(t)+'</h2>';
     if(b[0]==="assin")return '<div class="assin"><div><b>CONTRATANTE</b><span>'+htmlTexto(ctx.nomeCli)+'<br>'+htmlTexto(ctx.docCli)+'</span></div><div><b>CONTRATADO</b><span>'+htmlTexto(ctx.nomeK)+'<br>'+htmlTexto(ctx.cpfK)+'</span></div></div>';
+    if(b[0]==="anexo1")return anexoI(ct).map(function(a){
+      if(a[0]==="sub")return '<p class="sub"><b>'+htmlTexto(a[1])+'</b></p>';
+      if(a[0]==="li")return '<p class="li">'+htmlTexto(a[1])+'</p>';
+      return '<p>'+htmlTexto(a[1])+'</p>';
+    }).join("");
     return '<p>'+htmlTexto(t)+'</p>';
   }).join("")+'</article>';
 }
@@ -256,17 +327,23 @@ function runs(t,base){
 }
 function par(t,o){
   o=o||{};
-  var ppr=(o.jc?'<w:jc w:val="'+o.jc+'"/>':"")+(o.antes!=null||o.depois!=null?'<w:spacing w:before="'+(o.antes||0)+'" w:after="'+(o.depois!=null?o.depois:120)+'"/>':"")+(o.junto?"<w:keepNext/>":"");
+  /* ordem exigida pelo Word: keepNext, pageBreakBefore, spacing, ind, jc */
+  var ppr=(o.junto?"<w:keepNext/>":"")+(o.quebra?"<w:pageBreakBefore/>":"")+(o.antes!=null||o.depois!=null?'<w:spacing w:before="'+(o.antes||0)+'" w:after="'+(o.depois!=null?o.depois:120)+'"/>':"")+(o.ind?'<w:ind w:left="'+o.ind+'" w:hanging="220"/>':"")+(o.jc?'<w:jc w:val="'+o.jc+'"/>':"");
   return "<w:p>"+(ppr?"<w:pPr>"+ppr+"</w:pPr>":"")+runs(t,o.rpr||"")+"</w:p>";
 }
 function documentoXML(ct){
   var ctx=contexto(ct),corpo="";
   MODELO.forEach(function(b){
     var t=preencher(b[1],ctx);
-    if(b[0]==="marca")corpo+=par(t,{rpr:'<w:sz w:val="40"/><w:spacing w:val="20"/>',depois:360});
+    if(b[0]==="marca")corpo+=par(t,{rpr:'<w:rFonts w:ascii="Josefin Sans" w:hAnsi="Josefin Sans"/><w:spacing w:val="30"/><w:sz w:val="36"/>',depois:360});
     else if(b[0]==="titulo")corpo+=par("**"+t+"**",{jc:"center",depois:60});
     else if(b[0]==="centro")corpo+=par(t,{jc:"center",antes:120,depois:240});
-    else if(b[0]==="h")corpo+=par("**"+t+"**",{antes:/^ANEXO/.test(t)?360:240,depois:80,junto:true});
+    else if(b[0]==="h")corpo+=par("**"+t+"**",{antes:/^ANEXO/.test(t)?360:240,depois:80,junto:true,quebra:/^ANEXO I —/.test(t)});
+    else if(b[0]==="anexo1")anexoI(ct).forEach(function(a){
+      if(a[0]==="sub")corpo+=par("**"+a[1]+"**",{antes:200,depois:60,junto:true});
+      else if(a[0]==="li")corpo+=par("•  "+a[1],{ind:440,depois:60});
+      else corpo+=par(a[1],{jc:"both"});
+    });
     else if(b[0]==="assin"){
       [["CONTRATANTE",ctx.nomeCli,ctx.docCli],["CONTRATADO",ctx.nomeK,ctx.cpfK]].forEach(function(s){
         corpo+=par("**"+s[0]+":**",{antes:480,depois:600,junto:true})+par("______________________________________",{depois:0,junto:true})+par(s[1],{depois:0,junto:true})+par(s[2],{depois:120});
@@ -311,8 +388,8 @@ function contratoDocx(ct){
 
 /* ================= REVISÃO JURÍDICA DO CONTRATO BASE ================= */
 var REVISAO=[
- {t:"Partes e marca",n:"Ajuste",antes:"Cabeçalho “ESTÚDIO MATO”, mas quem assina é a pessoa física, sem endereço, sem registro no CAU e sem contato.",prob:"A marca não é parte do contrato. Sem endereço e sem CAU, a qualificação fica incompleta para cobrança e notificações.",agora:"Qualificação completa das duas partes (CPF ou CNPJ, endereço, e-mail, telefone e CAU do contratado) e a frase “que atua sob a marca MATO Produção”. Há versão para cliente empresa, com representante legal."},
- {t:"Objeto vago e contraditório",n:"Importante",antes:"1.1 diz “conforme projeto aprovado pelo Contratante”; 1.2 diz “itens escolhidos pelo Contratado”.",prob:"Não fica claro quem decide o quê, nem quais ambientes e qual finalidade (foto, mostra ou cliente final) estão incluídos.",agora:"Objeto com finalidade e ambientes, proposta como Anexo I, lista do que está incluído e do que não está (as mesmas exclusões da proposta)."},
+ {t:"Partes e marca",n:"Ajuste",antes:"Cabeçalho “ESTÚDIO MATO”, mas quem assina é a pessoa física, sem endereço, sem registro no CAU e sem contato.",prob:"A marca não é parte do contrato. Sem endereço e sem CAU, a qualificação fica incompleta para cobrança e notificações.",agora:"Qualificação completa das duas partes (CPF ou CNPJ, endereço, e-mail, telefone e CAU do contratado) e a frase “que atua sob a marca Shylton Mavie”. Há versão para cliente empresa, com representante legal."},
+ {t:"Objeto vago e contraditório",n:"Importante",antes:"1.1 diz “conforme projeto aprovado pelo Contratante”; 1.2 diz “itens escolhidos pelo Contratado”.",prob:"Não fica claro quem decide o quê, nem quais ambientes e qual finalidade (fotografia, mostras, marcas e lojas, área privativa ou áreas comuns) estão incluídos.",agora:"Objeto com finalidade e ambientes, proposta como Anexo I, lista do que está incluído e do que não está (as mesmas exclusões da proposta)."},
  {t:"Etapas e aprovações",n:"Importante",antes:"Não existiam.",prob:"Sem prazo de aprovação e sem limite de ajustes, o trabalho pode se arrastar sem cobrança extra.",agora:"Cláusula 3: conceito com prazo, prazo para o cliente aprovar, número de rodadas de ajuste e aprovação válida por e-mail ou WhatsApp."},
  {t:"Pagamento no passado",n:"Importante",antes:"3.1 “o Contratante pagou… no dia 27 de junho”.",prob:"Serve só para um caso já pago; não prevê sinal, saldo, atraso nem recibo.",agora:"Valor por extenso, sinal para reservar a data e saldo até o primeiro dia (ou à vista), PIX, recibo ou nota, multa de 2%, juros de 1% ao mês e correção pelo IPCA."},
  {t:"Despesas extras sem aprovação",n:"Importante",antes:"3.2 o cliente reembolsa “quaisquer gastos extras”.",prob:"O Código de Defesa do Consumidor (arts. 39 e 40) exige orçamento e autorização prévios; cobrar depois gera conflito.",agora:"Despesas aprovadas antes, limite por item que exige aprovação por escrito, reembolso em 5 dias úteis com comprovantes e valor de diária extra."},
@@ -336,6 +413,6 @@ function revisaoHTML(){
 }
 
 Object.assign(S,{slidesHTML:slidesHTML,propostaPDF:propostaPDF,imprimirProposta:imprimirProposta,
-  contratoHTML:contratoHTML,contratoDocx:contratoDocx,faltando:faltando,enderecoCli:enderecoCli,revisaoHTML:revisaoHTML,REVISAO:REVISAO,nomeArq:nomeArq,
+  contratoHTML:contratoHTML,contratoDocx:contratoDocx,faltando:faltando,enderecoCli:enderecoCli,faltaCliente:faltaCliente,revisaoHTML:revisaoHTML,REVISAO:REVISAO,nomeArq:nomeArq,
   _docx:{documentoXML:documentoXML,zip:zip,TIPOS:TIPOS,RELS:RELS,DOCRELS:DOCRELS,ESTILOS:ESTILOS}});
 })();

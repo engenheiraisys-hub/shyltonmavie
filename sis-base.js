@@ -81,9 +81,16 @@ function toast(msg){
   if(!t){t=document.createElement("div");t.id="sis-toast";t.className="toast";t.setAttribute("role","status");document.body.appendChild(t);}
   t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(function(){t.hidden=true;},2800);
 }
+/* Copiar: tenta a área de transferência; se o navegador bloquear, copia por um campo oculto (sem caixas do navegador, que alguns bloqueiam) */
+function copiarAntigo(texto){
+  var t=document.createElement("textarea");t.value=texto;t.setAttribute("readonly","");t.style.cssText="position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+  (document.querySelector("dialog[open]")||document.body).appendChild(t);t.select();
+  var ok=false;try{ok=document.execCommand("copy");}catch(e){}
+  t.remove();toast(ok?"Copiado.":"Não foi possível copiar. Selecione o texto e copie com Ctrl+C.");
+}
 function copiar(texto){
-  if(navigator.clipboard&&navigator.clipboard.writeText){return navigator.clipboard.writeText(texto).then(function(){toast("Copiado.");},function(){window.prompt("Copie o texto:",texto);});}
-  window.prompt("Copie o texto:",texto);return Promise.resolve();
+  if(navigator.clipboard&&navigator.clipboard.writeText){return navigator.clipboard.writeText(texto).then(function(){toast("Copiado.");},function(){copiarAntigo(texto);});}
+  copiarAntigo(texto);return Promise.resolve();
 }
 
 /* Capacidades da página publicada (claude.use); fora dela tudo volta null */
@@ -100,8 +107,8 @@ function usar(nome){
 }
 
 /* ---------- tabelas fixas ---------- */
-var FINALIDADES={foto:"Produção para foto",cliente:"Cliente final",mostra:"Exposição ou mostra"};
-var FINALIDADE_CAPS={foto:"PRODUÇÃO PARA FOTO",cliente:"CLIENTE FINAL",mostra:"MOSTRA"};
+var FINALIDADES={foto:"Fotografia",mostra:"Mostras",marcas:"Marcas e lojas",cliente:"Área privativa ou áreas comuns"};
+var FINALIDADE_CAPS={foto:"FOTOGRAFIA",mostra:"MOSTRAS",marcas:"MARCAS E LOJAS",cliente:"ÁREA PRIVATIVA OU ÁREAS COMUNS"};
 var ST={
   proposta:{nova:["Nova","#7D7A75"],enviada:["Enviada","#5F6F7A"],aceita:["Aceita","#3E6B48"],recusada:["Recusada","#9A3B2E"]},
   contrato:{enviado:["Enviado","#5F6F7A"],assinado:["Assinado","#3E6B48"],cancelado:["Cancelado","#9A3B2E"],rascunho:["Rascunho","#7D7A75"]}, /* "concluido" antigo conta como Assinado */
@@ -114,10 +121,10 @@ function opcoes(grupo){var g=ST[grupo]||{};return Object.keys(g).map(function(k)
 
 /* ---------- ajustes padrão ---------- */
 var PADRAO={
-  calc:{base:1500,adicional:1000,m2Base:20,m2Extra:30,fatorFoto:0,fatorMostra:0,fatorCliente:20,semProjeto:20,urgDias:15,urgPerc:15,deslocamento:350,cidadesBase:"Florianópolis, São Paulo",arredondar:50,diasPorAmbiente:1,diasMin:2,ambPorAjudante:2},
+  calc:{base:1500,adicional:1000,m2Base:20,m2Extra:30,fatorFoto:0,fatorMostra:0,fatorMarcas:0,fatorCliente:20,semProjeto:20,urgDias:15,urgPerc:15,deslocamento:350,cidadesBase:"Florianópolis, São Paulo",arredondar:50,diasPorAmbiente:1,diasMin:2,ambPorAjudante:2},
   whatsappAdm:"+55 48 99621-0587",
   siteUrl:"https://shyltonmavie.com/",
-  contratado:{nome:"Shylton Mattos Vieira",nacionalidade:"brasileiro",profissao:"arquiteto e urbanista",cpf:"",cau:"",endereco:"",email:["shyltonmattosvieira","gmail.com"].join("@"),telefone:"+55 48 9 9621-0587",instagram:"@shyltu",cidade:"Florianópolis, SC / BRASIL",pix:"",marca:"MATO Produção"},
+  contratado:{nome:"Shylton Mattos Vieira",nacionalidade:"brasileiro",profissao:"arquiteto e urbanista",cpf:"",cnpj:"58.055.462/0001-96",cau:"",endereco:"",email:["shyltonmattosvieira","gmail.com"].join("@"),telefone:"+55 48 9 9621-0587",instagram:"@shyltu",cidade:"Florianópolis, SC / BRASIL",pix:"",marca:"Shylton Mavie"},
   contrato:{sinal:50,limiteDespesa:300,diaria:800,prazoConceito:7,prazoAprovacao:3,revisoes:1,diasCancel:15,retencao:20,retencaoMax:50,prazoFotos:30,multaFotos:20,foro:"Florianópolis/SC",cidade:"Florianópolis"},
   proposta:{
     pagamento:"À vista",
@@ -130,7 +137,8 @@ var PADRAO={
 function cfg(){
   var c=Store.get("config","geral")||{};
   function m(k){return Object.assign({},PADRAO[k],c[k]||{});}
-  return {calc:m("calc"),contratado:m("contratado"),contrato:m("contrato"),proposta:m("proposta"),whatsappAdm:c.whatsappAdm||PADRAO.whatsappAdm,siteUrl:c.siteUrl||PADRAO.siteUrl};
+  var k=m("contratado");if(/^\s*(est[uú]dio\s+)?mato\b/i.test(k.marca||""))k.marca=PADRAO.contratado.marca; /* a marca MATO saiu (pedido da Isys, 2026-11-09) */
+  return {calc:m("calc"),contratado:k,contrato:m("contrato"),proposta:m("proposta"),whatsappAdm:c.whatsappAdm||PADRAO.whatsappAdm,siteUrl:c.siteUrl||PADRAO.siteUrl};
 }
 
 /* ---------- calculadora ---------- */
@@ -143,7 +151,7 @@ function calcular(p){
   var exced=amb.reduce(function(s,a){return s+Math.max(0,num(a.m2)-num(c.m2Base));},0);
   if(exced>0)itens.push({rot:"Área excedente: "+fmtNum(exced)+" m² × "+brl(c.m2Extra),v:exced*num(c.m2Extra)});
   var sub=itens.reduce(function(s,i){return s+i.v;},0);
-  var fat={foto:c.fatorFoto,mostra:c.fatorMostra,cliente:c.fatorCliente}[p.finalidade];
+  var fat={foto:c.fatorFoto,mostra:c.fatorMostra,marcas:c.fatorMarcas,cliente:c.fatorCliente}[p.finalidade];
   if(num(fat))itens.push({rot:"Finalidade: "+(FINALIDADES[p.finalidade]||"")+" (+"+fmtNum(fat)+"%)",v:sub*num(fat)/100});
   if(!p.temProjeto&&num(c.semProjeto))itens.push({rot:"Sem projeto ou SketchUp: conceito a desenvolver (+"+fmtNum(c.semProjeto)+"%)",v:sub*num(c.semProjeto)/100});
   if(p.dataSugerida){
@@ -165,7 +173,7 @@ function calcular(p){
    propostas, contratos, clientes, parceiros, equipe e financeiro só para o adm.
    Fora dela: modo demonstração no navegador (localStorage). */
 var LS="sm-sistema-v1";
-var COLS_ADM=["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config","time"];
+var COLS_ADM=["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config","time","pedidos"];
 var COLS_COLAB=["tarefas","agenda","parceiros","producoes","time"];
 var Store={
   modo:"carregando",db:null,dados:{},ouvintes:[],carregado:{},assinadas:"",
@@ -436,7 +444,7 @@ var PAI={proposta:"propostas",contrato:"contratos",producao:"producoes",revisao:
 SIS.mod={};
 var vista=null;
 function rotaAtual(){return (location.hash||"").slice(1);}
-function trata(h){return /^adm(\/|$)/.test(h)||h==="cadastro-cliente"||/(^|&)(access_token|error_description)=/.test(h);}
+function trata(h){return /^adm(\/|$)/.test(h)||h==="cadastro-cliente"||h==="pedido-proposta"||/(^|&)(access_token|error_description)=/.test(h);}
 /* Estilos, fontes dos documentos e módulos só são baixados quando a área restrita abre */
 var extrasP=null;
 function extras(){
@@ -455,6 +463,7 @@ function mostrar(){
 }
 function esconder(){var r=document.getElementById("sis");if(r){r.hidden=true;}fecharModal();vista=null;}
 var mudou=debounce(function(){
+  if(Sessao.papel==="adm"&&Store.modo==="db")converterPedidos();
   var raiz=document.getElementById("sis");
   if(!raiz||raiz.hidden||!vista)return;
   if(vista.atualizar)vista.atualizar();
@@ -465,6 +474,7 @@ function render(){
   var raiz=document.getElementById("sis");if(!raiz||raiz.hidden)return;
   var h=rotaAtual();
   if(h==="cadastro-cliente"){vista=null; /* equipe não tem link público: só o adm cadastra membros */SIS.publica(raiz,h);return;}
+  if(h==="pedido-proposta"){vista=null;pedidoPub(raiz);return;}
   var ps=h.split("/"),nome=ps[1]||"",id=ps.slice(2).join("/");
   if(!Sessao.papel){telaEntrada(raiz);return;}
   var colab=!ehAdm();
@@ -497,8 +507,34 @@ var ICO={
   ajustes:'<path d="M3.5 7h10M18.5 7h2M3.5 17h2M10.5 17h10"/><circle cx="16" cy="7" r="2.5"/><circle cx="8" cy="17" r="2.5"/>',
   previa:'<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   sair:'<path d="M13.5 3.5h-8v17h8"/><path d="M10 12h10.5M17 8.5l3.5 3.5-3.5 3.5"/>',
-  site:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.3 3.5 5.1 3.5 8.5s-1.2 6.2-3.5 8.5c-2.3-2.3-3.5-5.1-3.5-8.5s1.2-6.2 3.5-8.5z"/>'
+  site:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.3 3.5 5.1 3.5 8.5s-1.2 6.2-3.5 8.5c-2.3-2.3-3.5-5.1-3.5-8.5s1.2-6.2 3.5-8.5z"/>',
+  /* usados também no cadastro público (link) */
+  contato:'<rect x="3.5" y="5.5" width="17" height="13"/><path d="M3.5 6.5 12 13l8.5-6.5"/>',
+  local:'<path d="M12 20.5s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="9.5" r="2.5"/>',
+  ok:'<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
+  ambiente:'<path d="M5.5 11V7h13v4"/><path d="M3.5 11h3v3.5h11V11h3v6.5h-17z"/><path d="M5.5 17.5v2M18.5 17.5v2"/>',
+  /* botões: todo botão leva ícone desta biblioteca (pedido da Isys, 2026-11-10) */
+  mais:'<path d="M12 5v14M5 12h14"/>',
+  menos:'<path d="M5 12h14"/>',
+  salvar:'<path d="M4.5 3.5h11.5l3.5 3.5v13.5h-15z"/><path d="M8 3.5v5h7.5v-5M7.5 20.5v-7h9v7"/>',
+  baixar:'<path d="M12 3.5v12M7 10.5l5 5 5-5"/><path d="M4 20.5h16"/>',
+  fechar:'<path d="M6 6l12 12M18 6 6 18"/>',
+  excluir:'<path d="M4 6.5h16M9.5 6.5v-3h5v3"/><path d="M6 6.5l1 14h10l1-14"/><path d="M10 10.5v6M14 10.5v6"/>',
+  editar:'<path d="M15.5 4l4.5 4.5L9.5 19h-4.5v-4.5z"/><path d="M13 6.5l4.5 4.5"/>',
+  envio:'<path d="M20.5 3.5 3.5 10.5l7 3 3 7z"/><path d="M20.5 3.5l-10 10"/>',
+  whats:'<path d="M4 4.5h16v11H9.5L5 19.5v-4H4z"/><path d="M8 9h8M8 12h5"/>',
+  entrar:'<path d="M10.5 3.5h8v17h-8"/><path d="M3.5 12H14M10.5 8.5 14 12l-3.5 3.5"/>',
+  chave:'<circle cx="8" cy="15.5" r="4.5"/><path d="M11.2 12.3 19.5 4M16 7.5l2.5 2.5M13.5 10l2 2"/>',
+  menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+  anterior:'<path d="M14.5 6l-6 6 6 6"/>',
+  proximo:'<path d="M9.5 6l6 6-6 6"/>',
+  trocar:'<path d="M4.5 12a7.5 7.5 0 0 1 13-5.1M19.5 12a7.5 7.5 0 0 1-13 5.1"/><path d="M17.5 3.5V7H14M6.5 20.5V17H10"/>',
+  link:'<path d="M10.5 13.5a4 4 0 0 0 5.6 0l3-3a4 4 0 0 0-5.6-5.6l-1 1"/><path d="M13.5 10.5a4 4 0 0 0-5.6 0l-3 3a4 4 0 0 0 5.6 5.6l1-1"/>',
+  calc:'<path d="M5.5 3.5h13v17h-13z"/><path d="M8.5 7.5h7M8.5 12h1M11.5 12h1M14.5 12h1M8.5 16h1M11.5 16h1M14.5 16h1"/>',
+  doc:'<path d="M14 3.5H5.5v17h13V8z"/><path d="M14 3.5V8h4.5"/>'
 };
+function ikb(n){return '<svg class="ik" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+(ICO[n]||"")+'</svg>';}
+SIS.ICO=ICO; /* a mesma biblioteca vale para títulos de página, seções e modais (sis-modulos.js) */
 function ico(n){return '<svg class="sb__ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+ICO[n]+'</svg>';}
 function sbItem(tag,attrs,icone,texto){return '<'+tag+' class="sb__item" '+attrs+'>'+ico(icone)+'<span class="sb__txt">'+texto+'</span></'+tag+'>';}
 /* Logo da barra: o símbolo fica sempre visível; o nome aparece quando a barra abre */
@@ -512,9 +548,10 @@ function cascaHTML(ativo){
   pe.push(sbItem("button",'type="button" data-sair',"sair","Sair"));
   pe.push(sbItem("a",'href="#inicio"',"site","Ver o site"));
   var modo=Store.modo==="local"?'<p class="sis-modo">Modo demonstração: os dados ficam só neste navegador. No site publicado com servidor, os dados ficam no banco e cada pessoa entra com o próprio login.</p>':(Sessao.previa?'<p class="sis-modo">Você está vendo a área como um colaborador vê: Produções e Parceiros (só consulta, sem valores), Tarefas e Calendário.</p>':"");
-  return '<header class="sis-topo-m"><a href="#adm" class="sis-topo-m__logo barra__logo" aria-label="Área restrita, início">'+logoSVG()+'</a><button type="button" class="menu-btn" data-sb-abrir aria-expanded="false" aria-controls="sis-sb">Menu</button></header>'+
+  /* Barra do celular (pedido da Isys, 2026-11-10): menu só com o ícone no canto superior esquerdo; símbolo e nome no canto superior direito */
+  return '<header class="sis-topo-m"><button type="button" class="menu-btn" data-sb-abrir aria-expanded="false" aria-controls="sis-sb" aria-label="Abrir menu">'+ikb("menu")+'</button><a href="#adm" class="sis-topo-m__logo barra__logo" aria-label="Área restrita, início">'+logoSVG()+'</a></header>'+
     '<aside class="sb" id="sis-sb" aria-label="Menu da área restrita">'+
-      '<div class="sb__topo"><a href="#adm" class="sb__logo" aria-label="Área restrita, início">'+logoSB()+'</a><button type="button" class="sb__fechar" data-sb-fechar>Fechar</button></div>'+
+      '<div class="sb__topo"><a href="#adm" class="sb__logo" aria-label="Área restrita, início">'+logoSB()+'</a><button type="button" class="sb__fechar" data-sb-fechar>'+ikb("fechar")+'Fechar</button></div>'+
       '<nav class="sb__nav" aria-label="Área restrita">'+itens.map(function(n){return sbItem("a",'href="#adm/'+n[0]+'"'+(n[0]===ativo?' aria-current="page"':''),n[0],n[1]);}).join("")+'</nav>'+
       '<div class="sb__pe">'+pe.join("")+'</div>'+
     '</aside><div class="sb-veu" data-sb-fechar hidden></div>'+
@@ -573,16 +610,16 @@ function telaSupa(raiz,modo){
   modo=modo||"entrar";
   var aviso=Sessao.aviso?'<p class="status erro">'+esc(Sessao.aviso)+'</p>':"";Sessao.aviso="";
   if(modo==="sem"){
-    raiz.innerHTML=topo+'<p>Você entrou como <strong>'+esc(Sessao.email)+'</strong>, mas esse e-mail ainda não foi liberado. Peça ao Shylton para liberar seu acesso na aba Equipe.</p><div class="acoes"><button type="button" class="btn btn--linha" data-sair>Sair</button></div>'+fim;
+    raiz.innerHTML=topo+'<p>Você entrou como <strong>'+esc(Sessao.email)+'</strong>, mas esse e-mail ainda não foi liberado. Peça ao Shylton para liberar seu acesso na aba Equipe.</p><div class="acoes"><button type="button" class="btn btn--linha" data-sair>'+ikb("sair")+'Sair</button></div>'+fim;
     $("[data-sair]",raiz).addEventListener("click",sair);return;
   }
   var intro={entrar:"Entre com seu e-mail e senha. Acesso só para o administrador e os colaboradores liberados.",
     criar:"Primeiro acesso: use o e-mail liberado pelo Shylton e crie sua senha. Enviamos um link de confirmação para esse e-mail.",
     esqueci:"Digite seu e-mail. Enviamos um link para você criar uma nova senha.",
     nova:"Crie sua nova senha."}[modo];
-  var botao={entrar:"Entrar",criar:"Criar acesso",esqueci:"Enviar link",nova:"Salvar nova senha"}[modo];
-  var links=modo==="entrar"?'<button type="button" class="lnk" data-modo="esqueci">Esqueci minha senha</button><button type="button" class="lnk" data-modo="criar">Primeiro acesso</button>'
-    :modo==="nova"?'':'<button type="button" class="lnk" data-modo="entrar">Já tenho senha</button>';
+  var botao={entrar:ikb("entrar")+"Entrar",criar:ikb("chave")+"Criar acesso",esqueci:ikb("envio")+"Enviar link",nova:ikb("salvar")+"Salvar nova senha"}[modo];
+  var links=modo==="entrar"?'<button type="button" class="lnk" data-modo="esqueci">'+ikb("chave")+'Esqueci minha senha</button><button type="button" class="lnk" data-modo="criar">'+ikb("clientes")+'Primeiro acesso</button>'
+    :modo==="nova"?'':'<button type="button" class="lnk" data-modo="entrar">'+ikb("entrar")+'Já tenho senha</button>';
   var duas=modo==="criar"||modo==="nova";
   raiz.innerHTML=topo+'<p>'+intro+'</p>'+aviso+
     '<form class="entrada__caixa" id="lg-form" novalidate>'+
@@ -644,14 +681,14 @@ function telaEntrada(raiz,modoPedido){
       :db?(cred?"Crie uma nova senha. A senha anterior deixa de valer.":"Primeiro acesso: crie o e-mail e a senha que você vai usar para entrar como "+(Sessao.conta==="adm"?"administrador.":"colaborador."))
       :primeiroAdm?"Primeiro acesso do administrador: crie o e-mail e a senha de entrada."
       :"Primeiro acesso de membro: use o e-mail que o Shylton liberou na aba Equipe e crie sua senha.";
-    var troca=!criar?'<button type="button" class="lnk" data-modo="criar">'+(db?"Esqueci minha senha":"Primeiro acesso de colaborador")+'</button>'
-      :((db?cred:!primeiroAdm)?'<button type="button" class="lnk" data-modo="entrar">Já tenho senha</button>':'');
+    var troca=!criar?'<button type="button" class="lnk" data-modo="criar">'+(db?ikb("chave")+"Esqueci minha senha":ikb("clientes")+"Primeiro acesso de colaborador")+'</button>'
+      :((db?cred:!primeiroAdm)?'<button type="button" class="lnk" data-modo="entrar">'+ikb("entrar")+'Já tenho senha</button>':'');
     raiz.innerHTML=topo+'<p>'+intro+'</p>'+
       '<form class="entrada__caixa" id="lg-form" novalidate>'+
         '<label class="f">E-mail<input type="email" id="lg-email" autocomplete="'+(criar?"email":"username")+'" required></label>'+
         campoSenha('Senha'+(criar?' <small>Mínimo de 8 caracteres</small>':''),"lg-senha",criar?"new-password":"current-password")+
         (criar?campoSenha("Confirmar senha","lg-senha2","new-password"):'')+
-        '<div class="acoes"><button type="submit" class="btn btn--escuro">'+(criar?"Criar senha e entrar":"Entrar")+'</button>'+troca+'</div>'+
+        '<div class="acoes"><button type="submit" class="btn btn--escuro">'+(criar?ikb("chave")+"Criar senha e entrar":ikb("entrar")+"Entrar")+'</button>'+troca+'</div>'+
         '<p class="status" id="lg-status" role="status"></p>'+
       '</form>'+
       (db?'':'<p class="nota entrada__pe">Modo demonstração: e-mails, senhas e dados ficam guardados só neste navegador.</p>')+fim;
@@ -725,7 +762,8 @@ function fecharModal(){if(dlg){try{dlg.close();}catch(e){}dlg.remove();dlg=null;
 function modal(o){
   fecharModal();
   dlg=document.createElement("dialog");dlg.className="modal";
-  dlg.innerHTML='<div class="modal__cab"><p class="modal__sobre">'+esc(o.sobre||"Cadastro")+'</p><h2 class="modal__tit">'+esc(o.titulo||"")+'</h2></div>'+
+  var ik=ICO[o.ico||normal(o.sobre)]; /* ícone da área (mesma biblioteca do menu) */
+  dlg.innerHTML='<div class="modal__cab"><p class="modal__sobre">'+(ik?'<svg class="ik" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+ik+'</svg>':'')+esc(o.sobre||"Cadastro")+'</p><h2 class="modal__tit">'+esc(o.titulo||"")+'</h2></div>'+
     '<div class="modal__corpo">'+(o.corpo||"")+'</div><div class="modal__pe">'+(o.pe||"")+'</div>';
   document.body.appendChild(dlg);
   dlg.addEventListener("cancel",function(e){e.preventDefault();fecharModal();});
@@ -735,12 +773,35 @@ function modal(o){
   var p=$(".modal__corpo input, .modal__corpo select, .modal__corpo textarea",dlg);if(p&&!o.semFoco)p.focus();
   return dlg;
 }
+/* Confirmação no padrão do sistema (substitui o window.confirm, que alguns navegadores bloqueiam e responde "não" sozinho).
+   Abre por cima de outra janela aberta. Devolve uma Promise com true (confirmou) ou false. */
+function confirmar(o){
+  if(typeof o==="string")o={titulo:o};
+  return new Promise(function(fim){
+    var c=document.createElement("dialog"),feito=false;c.className="modal modal--conf";
+    c.setAttribute("aria-labelledby","conf-tit");
+    var perigo=o.perigo!==false;
+    c.innerHTML='<div class="modal__cab"><p class="modal__sobre">'+ikb(o.ico||(perigo?"excluir":"ok"))+esc(o.sobre||(perigo?"Excluir":"Confirmar"))+'</p><h2 class="modal__tit" id="conf-tit">'+esc(o.titulo||"Tem certeza?")+'</h2></div>'+
+      '<div class="modal__corpo"><p>'+esc(o.texto||(perigo?"Essa ação não pode ser desfeita.":""))+'</p></div>'+
+      '<div class="modal__pe"><button type="button" class="btn btn--linha" data-nao>'+ikb("fechar")+'Cancelar</button>'+
+      '<button type="button" class="btn '+(perigo?"btn--linha btn--perigo":"btn--escuro")+'" data-sim>'+ikb(o.icoOk||(perigo?"excluir":"ok"))+esc(o.ok||(perigo?"Excluir":"Confirmar"))+'</button></div>';
+    function sair(r){if(feito)return;feito=true;try{c.close();}catch(e){}c.remove();fim(r);}
+    document.body.appendChild(c);
+    c.addEventListener("cancel",function(e){e.preventDefault();sair(false);});
+    c.addEventListener("click",function(e){if(e.target===c)sair(false);});
+    $("[data-nao]",c).addEventListener("click",function(){sair(false);});
+    $("[data-sim]",c).addEventListener("click",function(){sair(true);});
+    try{c.showModal();}catch(e){c.setAttribute("open","");}
+    $("[data-nao]",c).focus(); /* foco no Cancelar: Enter sozinho não apaga nada */
+  });
+}
 /* Formulário em modal: campos -> salvar/excluir */
 function modalForm(o){
-  var pe=(o.aoExcluir?'<button type="button" class="lnk lnk--perigo esq" data-excluir>Excluir</button>':'')+
-    '<button type="button" class="btn btn--linha" data-fechar>× Cancelar</button>'+
-    '<button type="button" class="btn btn--escuro" data-salvar>'+esc(o.salvarRot||"+ Adicionar")+'</button>';
-  var d=modal({sobre:o.sobre,titulo:o.titulo,corpo:(o.antes||"")+'<div class="fgrid">'+campos(o.campos,o.dados)+'</div>'+(o.depois||""),pe:pe});
+  var rot=o.salvarRot||"Adicionar",soma=/^\+\s*/.test(rot)||!o.salvarRot;
+  var pe=(o.aoExcluir?'<button type="button" class="btn btn--linha btn--perigo esq" data-excluir>'+ikb("excluir")+'Excluir</button>':'')+
+    '<button type="button" class="btn btn--linha" data-fechar>'+ikb("fechar")+'Cancelar</button>'+
+    '<button type="button" class="btn btn--escuro" data-salvar>'+ikb(soma?"mais":"salvar")+esc(rot.replace(/^\+\s*/,""))+'</button>';
+  var d=modal({sobre:o.sobre,ico:o.ico,titulo:o.titulo,corpo:(o.antes||"")+'<div class="fgrid">'+campos(o.campos,o.dados)+'</div>'+(o.depois||""),pe:pe});
   if(o.aoAbrir)o.aoAbrir(d);
   $("[data-salvar]",d).addEventListener("click",function(){
     var corpo=$(".modal__corpo",d);if(!validar(corpo))return;
@@ -748,7 +809,12 @@ function modalForm(o){
     Promise.resolve(o.aoSalvar(v,d)).then(function(r){if(r!==false)fecharModal();else b.disabled=false;},function(e){b.disabled=false;erroGravar(e);});
   });
   var x=$("[data-excluir]",d);
-  if(x)x.addEventListener("click",function(){if(!window.confirm(o.confirmar||"Excluir este cadastro? Essa ação não pode ser desfeita."))return;Promise.resolve(o.aoExcluir()).then(fecharModal,erroGravar);});
+  if(x)x.addEventListener("click",function(){
+    confirmar({titulo:o.confirmar||"Excluir este cadastro?"}).then(function(sim){
+      if(!sim)return;x.disabled=true;
+      Promise.resolve(o.aoExcluir()).then(fecharModal,function(e){x.disabled=false;erroGravar(e);});
+    });
+  });
   return d;
 }
 function erroGravar(e){
@@ -799,7 +865,7 @@ function novaProposta(x){
 function listaAmbientes(p){return (p.ambientes||[]).filter(function(a){return String(a.nome||"").trim();}).map(function(a){return a.nome+(num(a.m2)?" ("+fmtNum(a.m2)+" m²)":"");}).join(", ");}
 function msgAdm(p){
   var fotos=(p.ambientes||[]).reduce(function(s,a){return s+(a.fotos||[]).length;},0);
-  var l=["*Novo pedido de proposta pelo site* ("+p.num+")","",
+  var l=["*Novo pedido de proposta pelo "+(p.origem==="link"?"link":"site")+"* ("+p.num+")","",
     "Cliente: "+(p.cliente.nome||""),"WhatsApp: "+(p.cliente.telefone||""),"E-mail: "+(p.cliente.email||""),"Local: "+(p.cliente.local||""),
     "Finalidade: "+(FINALIDADES[p.finalidade]||""),"Ambientes: "+listaAmbientes(p),"Fotos enviadas: "+fotos,
     "Projeto ou SketchUp: "+(p.temProjeto?"sim":"não")+((p.arquivos||[]).length?" ("+p.arquivos.length+" arquivo"+(p.arquivos.length>1?"s":"")+")":""),
@@ -821,20 +887,45 @@ function receberPedido(d){
     });
     d.projFiles.forEach(function(f){fila=fila.then(function(){return subir(f).then(function(r){arquivos.push(r);});});});
     return fila.then(function(){
-      var cli=Store.list("clientes").find(function(c){return (d.email&&normal(c.email)===normal(d.email))||(soDig(d.telefone).length>7&&soDig(c.telefone)===soDig(d.telefone));});
-      var pc=cli?Promise.resolve(cli.id):Store.salvar("clientes",null,{tipo:"PF",nome:d.nome,email:d.email,telefone:d.telefone,cidade:d.local,origem:"Pedido de proposta pelo site",criadoEm:agoraISO()});
-      return pc.then(function(clienteId){
-        var p=novaProposta({origem:"site",clienteId:clienteId,cliente:{nome:d.nome,empresa:"",codigo:"",telefone:d.telefone,email:d.email,local:d.local},
-          finalidade:d.finalidade,ambientes:ambientes,temProjeto:d.temProjeto,arquivos:arquivos,dataSugerida:d.dataSugerida,mensagem:d.mensagem});
-        var r=calcular(p);p.valor=r.total;p.dias=r.dias;p.ajudantes=r.ajudantes;
-        return Store.salvar("propostas",null,p).then(function(id){
-          return Store.salvar("avisos",null,{tipo:"adm",para:cfg().whatsappAdm,texto:msgAdm(p),propostaId:id,num:p.num,criadoEm:agoraISO(),enviado:false})
-            .then(function(){return Store.salvar("avisos",null,{tipo:"cliente",para:d.telefone,texto:msgCliente(p),propostaId:id,num:p.num,nome:d.nome,criadoEm:agoraISO(),enviado:false});})
-            .then(function(){return {ok:true,id:id};});
-        });
-      });
+      return criarProposta({nome:d.nome,telefone:d.telefone,email:d.email,local:d.local,finalidade:d.finalidade,ambientes:ambientes,temProjeto:d.temProjeto,arquivos:arquivos,dataSugerida:d.dataSugerida,mensagem:d.mensagem,origem:"site"});
     });
   });
+}
+/* Pedido (do site ou do link) vira cliente (se ainda não existe) + proposta Nova já calculada + avisos de WhatsApp.
+   Com pedidoId (pedido do link guardado em "pedidos"), os ids são fixos: converter duas vezes não duplica. */
+function limpo(s,n){return String(s==null?"":s).trim().slice(0,n||200);}
+function criarProposta(d){
+  var fixo=d.pedidoId?"ped-"+d.pedidoId:null,link=d.origem==="link";
+  if(fixo&&Store.get("propostas",fixo))return Promise.resolve({ok:true,id:fixo,num:Store.get("propostas",fixo).num});
+  var x={nome:limpo(d.nome,120),telefone:limpo(d.telefone,40),email:limpo(d.email,120),local:limpo(d.local,160)};
+  var amb=(Array.isArray(d.ambientes)?d.ambientes:[]).slice(0,30).map(function(a){a=a||{};return {nome:limpo(a.nome,80)||"Ambiente",m2:limpo(a.m2,12),fotos:Array.isArray(a.fotos)?a.fotos:[]};});
+  if(!amb.length)amb=[{nome:"",m2:"",fotos:[]}];
+  var cli=Store.list("clientes").find(function(c){return (x.email&&normal(c.email)===normal(x.email))||(soDig(x.telefone).length>7&&soDig(c.telefone)===soDig(x.telefone));});
+  var pc=cli?Promise.resolve(cli.id):Store.salvar("clientes",fixo,{tipo:"PF",nome:x.nome,email:x.email,telefone:x.telefone,cidade:x.local,origem:"Pedido de proposta pelo "+(link?"link":"site"),criadoEm:agoraISO()});
+  return pc.then(function(clienteId){
+    var p=novaProposta({origem:link?"link":"site",clienteId:clienteId,cliente:{nome:x.nome,empresa:"",codigo:"",telefone:x.telefone,email:x.email,local:x.local},
+      finalidade:FINALIDADES[d.finalidade]?d.finalidade:"foto",ambientes:amb,temProjeto:!!d.temProjeto,arquivos:Array.isArray(d.arquivos)?d.arquivos:[],
+      dataSugerida:/^\d{4}-\d{2}-\d{2}$/.test(d.dataSugerida||"")?d.dataSugerida:"",mensagem:limpo(d.mensagem,2000)});
+    var r=calcular(p);p.valor=r.total;p.dias=r.dias;p.ajudantes=r.ajudantes;
+    return Store.salvar("propostas",fixo,p).then(function(id){
+      return Store.salvar("avisos",fixo&&fixo+"-adm",{tipo:"adm",para:cfg().whatsappAdm,texto:msgAdm(p),propostaId:id,num:p.num,criadoEm:agoraISO(),enviado:false})
+        .then(function(){return Store.salvar("avisos",fixo&&fixo+"-cli",{tipo:"cliente",para:x.telefone,texto:msgCliente(p),propostaId:id,num:p.num,nome:x.nome,criadoEm:agoraISO(),enviado:false});})
+        .then(function(){return {ok:true,id:id,num:p.num};});
+    });
+  });
+}
+/* Quem pede pelo link não tem login: só consegue CRIAR um registro em "pedidos" (não lê nada).
+   Com a área aberta, o adm transforma cada pedido em proposta Nova (com a tabela de preços dele) e apaga o pedido. */
+var convertendo=false;
+function converterPedidos(){
+  if(convertendo||Sessao.papel!=="adm")return;
+  if(!["pedidos","propostas","clientes","config","avisos"].every(function(c){return Store.carregado[c];}))return;
+  var l=Store.list("pedidos");if(!l.length)return;
+  convertendo=true;
+  l.reduce(function(q,pd){return q.then(function(){
+    var id=pd.id;delete pd.id;
+    return criarProposta(Object.assign(pd,{pedidoId:id,origem:"link"})).then(function(r){toast("Novo pedido de proposta: "+r.num+". Está em Propostas.");return Store.excluir("pedidos",id);});
+  });},Promise.resolve()).catch(function(e){if(window.console)console.error(e);}).then(function(){convertendo=false;});
 }
 
 /* ---------- formulário de pedido no Contato do site ---------- */
@@ -883,40 +974,52 @@ function ligarPedido(){
   });
 }
 
+/* Representante legal e CPF dele só aparecem para Empresa (pedido da Isys, 2026-11-09): no Novo cliente/cadastro e no formulário do link.
+   obrig=true (formulário público): para Empresa os dois passam a ser obrigatórios, porque o contrato precisa deles. */
+function ligarTipoCliente(raiz,obrig){
+  var sel=$('[data-k="tipo"]',raiz);if(!sel)return;
+  function aplicar(){
+    var pj=sel.value==="PJ";
+    ["representante","repCpf"].forEach(function(k){
+      var i=$('[data-k="'+k+'"]',raiz);if(!i)return;var l=i.closest("label")||i.parentNode;
+      l.hidden=!pj;if(obrig){if(pj)i.setAttribute("required","");else i.removeAttribute("required");}
+    });
+  }
+  sel.addEventListener("change",aplicar);aplicar();
+}
+SIS.ligarTipoCliente=function(d){ligarTipoCliente(d,false);};
+
 /* ---------- páginas públicas de cadastro (link compartilhável) ---------- */
 var UFS="AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
-function cpub(k,r,o){o=o||{};var id="pb-"+k;
-  if(o.t==="select")return '<label class="campo" for="'+id+'">'+esc(r)+(o.req?" *":"")+'<select id="'+id+'" data-k="'+k+'"'+(o.req?" required":"")+'>'+o.o.map(function(x){var a=Array.isArray(x)?x:[x,x];return '<option value="'+esc(a[0])+'">'+esc(a[1])+'</option>';}).join("")+'</select></label>';
-  return '<label class="campo" for="'+id+'">'+esc(r)+(o.req?" *":"")+'<input id="'+id+'" type="'+(o.t||"text")+'" data-k="'+k+'"'+(o.req?" required":"")+(o.ac?' autocomplete="'+o.ac+'"':'')+(o.ph?' placeholder="'+esc(o.ph)+'"':'')+'></label>';
-}
+/* Cadastro pelo link: mesmo visual da área restrita (página branca, blocos cinza com ícone no título,
+   campos .fgrid alinhados, botão escuro); sem texto de apresentação (pedido da Isys, 2026-11-09) */
+function blocoPub(ic,tit,lista){return '<section class="sis-sec"><h2>'+ikb(ic)+esc(tit)+'</h2><div class="fgrid">'+campos(lista,{})+'</div></section>';}
 SIS.publica=function(raiz,h){
   var cli=h==="cadastro-cliente";
   var corpo=cli?
-    '<div class="fduas">'+cpub("tipo","Você é",{t:"select",o:[["PF","Pessoa física"],["PJ","Empresa"]]})+cpub("nome","Nome completo ou razão social",{req:1,ac:"name"})+
-    cpub("doc","CPF ou CNPJ",{req:1})+cpub("rg","RG (pessoa física)")+
-    cpub("nacionalidade","Nacionalidade",{ph:"brasileira"})+cpub("estadoCivil","Estado civil")+
-    cpub("profissao","Profissão")+cpub("email","E-mail",{t:"email",req:1,ac:"email"})+
-    cpub("telefone","Telefone / WhatsApp",{t:"tel",req:1,ac:"tel"})+cpub("instagram","Instagram")+
-    cpub("cep","CEP",{ac:"postal-code"})+cpub("endereco","Rua / avenida",{req:1,ac:"address-line1"})+
-    cpub("numero","Número",{req:1})+cpub("complemento","Complemento")+
-    cpub("bairro","Bairro")+cpub("cidade","Cidade",{req:1,ac:"address-level2"})+
-    cpub("uf","Estado",{t:"select",o:[["","—"]].concat(UFS),req:1})+cpub("representante","Representante legal (empresa)")+
-    cpub("repCpf","CPF do representante (empresa)")+'</div>'+
-    '<label class="chk"><input type="checkbox" id="pb-lgpd" required> Autorizo o uso destes dados para propostas, contrato e comunicação sobre o serviço (LGPD).</label>'
+    blocoPub("clientes","Seus dados",[{k:"tipo",r:"Você é",t:"select",o:[["PF","Pessoa física"],["PJ","Empresa"]]},{k:"nome",r:"Nome completo ou razão social",req:1,ac:"name"},
+      {k:"doc",r:"CPF ou CNPJ",req:1},{k:"rg",r:"RG (pessoa física)"},{k:"nacionalidade",r:"Nacionalidade",ph:"brasileira"},{k:"estadoCivil",r:"Estado civil"},
+      {k:"profissao",r:"Profissão",full:1},{k:"representante",r:"Representante legal *"},{k:"repCpf",r:"CPF do representante *"}])+
+    blocoPub("contato","Contato",[{k:"email",r:"E-mail",t:"email",req:1,ac:"email"},{k:"telefone",r:"Telefone / WhatsApp",t:"tel",req:1,ac:"tel"},{k:"instagram",r:"Instagram"}])+
+    blocoPub("local","Endereço",[{k:"cep",r:"CEP",ac:"postal-code"},{k:"endereco",r:"Rua / avenida",req:1,ac:"address-line1"},{k:"numero",r:"Número",req:1},{k:"complemento",r:"Complemento"},
+      {k:"bairro",r:"Bairro"},{k:"cidade",r:"Cidade",req:1,ac:"address-level2"},{k:"uf",r:"Estado",t:"select",o:[["","—"]].concat(UFS),req:1}])
     :
-    '<div class="fduas">'+cpub("nome","Nome completo",{req:1,ac:"name"})+cpub("funcao","Função",{req:1,ph:"Ex.: assistente de produção, montagem, motorista"})+
-    cpub("email","E-mail",{t:"email",req:1,ac:"email"})+cpub("telefone","Telefone / WhatsApp",{t:"tel",req:1,ac:"tel"})+
-    cpub("cidade","Cidade",{req:1})+cpub("pix","Chave PIX")+'</div>'+
-    '<label class="chk"><input type="checkbox" id="pb-lgpd" required> Autorizo o uso destes dados para a organização das produções (LGPD).</label>';
-  raiz.innerHTML='<header class="barra"><a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, início"><svg class="barra__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="barra__nome">Shylton Mavie</span></a><button type="button" class="menu-btn" data-menu aria-label="Menu" aria-expanded="false" aria-controls="menu"><svg class="menu-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6.5h18M3 12h18M3 17.5h18"/></svg></button></header><h1 class="pag__titulo">Cadastro</h1>'+
-    '<div class="cols"><div></div><div class="corpo"><p class="grande">'+(cli?"Preencha seus dados para o contrato de produção. Eles são usados só para a proposta, o contrato e o contato sobre o serviço.":"Preencha seus dados para trabalhar nas produções do Shylton Mavie. Depois do envio, o Shylton libera seu acesso às tarefas e ao calendário.")+'</p></div></div>'+
-    '<div class="linhas"><div class="linha"><h2 class="linha__rot">Seus dados</h2><div><form class="form form--larga" id="form-pub" novalidate>'+corpo+'<button type="submit" class="enviar">Enviar cadastro</button><p class="status" id="pb-status" role="status"></p></form><div class="pedido-ok" id="pb-ok" hidden></div></div></div></div>'+
-    '<footer class="rodape"><span>© 2026 Shylton Mavie</span></footer>';
+    blocoPub("equipe","Seus dados",[{k:"nome",r:"Nome completo",req:1,ac:"name"},{k:"funcao",r:"Função",req:1,ph:"Ex.: assistente de produção, montagem, motorista"},{k:"cidade",r:"Cidade",req:1},{k:"pix",r:"Chave PIX"}])+
+    blocoPub("contato","Contato",[{k:"email",r:"E-mail",t:"email",req:1,ac:"email"},{k:"telefone",r:"Telefone / WhatsApp",t:"tel",req:1,ac:"tel"}]);
+  var lgpd=cli?"Autorizo o uso destes dados para propostas, contrato e comunicação sobre o serviço (LGPD).":"Autorizo o uso destes dados para a organização das produções (LGPD).";
+  raiz.innerHTML='<div class="pub"><header class="pub__topo"><a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, voltar ao site">'+logoSVG()+'</a><a class="lnk" href="#inicio">Voltar ao site</a></header>'+
+    '<div class="sis-cab"><h1>'+ikb(cli?"clientes":"equipe")+(cli?"Cadastro de cliente":"Cadastro da equipe")+'</h1></div>'+
+    '<form id="form-pub" novalidate>'+corpo+
+      '<div class="pub__envio"><label class="chk"><input type="checkbox" id="pb-lgpd" required> '+lgpd+'</label><button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar cadastro</button><p class="status" id="pb-status" role="status"></p></div></form>'+
+    '<section class="sis-sec" id="pb-ok" hidden></section>'+
+    '<p class="pub__pe">© 2026 Shylton Mavie</p></div>';
   window.scrollTo(0,0);
   var form=$("#form-pub",raiz),st=$("#pb-status",raiz);
+  if(cli)ligarTipoCliente(form,true);
   form.addEventListener("submit",function(e){
     e.preventDefault();
     var falta=$$("[required]",form).filter(function(x){return x.type==="checkbox"?!x.checked:!String(x.value).trim();});
+    $$("[required]",form).forEach(function(x){if(x.type!=="checkbox")x.setAttribute("aria-invalid",falta.indexOf(x)>-1?"true":"false");});
     if(falta.length){st.className="status erro";st.textContent=$("#pb-lgpd",form).checked?"Preencha os campos marcados com *.":"Preencha os campos marcados com * e marque a autorização de uso dos dados.";falta[0].focus();return;}
     var v={};$$("[data-k]",form).forEach(function(x){v[x.getAttribute("data-k")]=String(x.value).trim();});
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)){st.className="status erro";st.textContent="Confira o e-mail.";return;}
@@ -930,10 +1033,65 @@ SIS.publica=function(raiz,h){
       return Store.salvar(cli?"clientes":"equipe",null,v);
     }).then(function(){
       form.hidden=true;var ok=$("#pb-ok",raiz);ok.hidden=false;
-      ok.innerHTML='<h3>Cadastro recebido.</h3><p>'+(cli?"Obrigado! Seus dados já estão com o Shylton para o contrato.":"Obrigado! Assim que o Shylton liberar, você verá as tarefas e o calendário na área restrita.")+'</p>'+(Store.modo==="local"?'<p class="nota">Demonstração: o cadastro foi salvo na área restrita deste navegador.</p>':'');
+      ok.innerHTML='<h2>'+ikb("ok")+'Cadastro recebido</h2><div><p>'+(cli?"Obrigado! Seus dados já estão com o Shylton para o contrato.":"Obrigado! Assim que o Shylton liberar, você verá as tarefas e o calendário na área restrita.")+'</p>'+(Store.modo==="local"?'<p class="nota">Demonstração: o cadastro foi salvo na área restrita deste navegador.</p>':'')+'</div>';window.scrollTo(0,0);
     },function(){st.className="status erro";st.textContent="O envio automático ainda não está ligado nesta versão do site. Envie seus dados ao Shylton pelo WhatsApp +55 48 9 9621-0587.";});
   });
 };
+
+/* ---------- pedido de proposta pelo link (Propostas › Link para pedir proposta) ----------
+   Mesmo visual do cadastro pelo link. Sem login: grava só em "pedidos"; o adm transforma em proposta (converterPedidos). */
+function ambPub(n){
+  var a="pa"+(++seq),b="pm"+(++seq);
+  return '<div class="pub__amb" data-amb><div class="pub__amb-topo"><span>Ambiente '+n+'</span>'+(n>1?'<button type="button" class="lnk" data-rem-amb>'+ikb("excluir")+'Remover</button>':'')+'</div>'+
+    '<div class="fgrid"><label class="f" for="'+a+'">Nome do ambiente *<input id="'+a+'" type="text" data-a="nome" placeholder="Ex.: sala de estar"></label>'+
+    '<label class="f" for="'+b+'">Metragem (m²), se souber<input id="'+b+'" type="text" inputmode="decimal" data-a="m2" placeholder="Ex.: 18"></label></div></div>';
+}
+function pedidoPub(raiz){
+  var fins=[["","— escolha —"]].concat(Object.keys(FINALIDADES).map(function(k){return [k,FINALIDADES[k]];}));
+  raiz.innerHTML='<div class="pub"><header class="pub__topo"><a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, voltar ao site">'+logoSVG()+'</a><a class="lnk" href="#inicio">Voltar ao site</a></header>'+
+    '<div class="sis-cab"><h1>'+ikb("propostas")+'Pedido de proposta</h1></div>'+
+    '<form id="form-pub" novalidate>'+
+      blocoPub("clientes","Seus dados",[{k:"nome",r:"Nome completo",req:1,ac:"name"},{k:"telefone",r:"WhatsApp",t:"tel",req:1,ac:"tel"},
+        {k:"email",r:"E-mail",t:"email",req:1,ac:"email"},{k:"local",r:"Cidade da produção",req:1,ac:"address-level2"}])+
+      blocoPub("producoes","A produção",[{k:"finalidade",r:"Finalidade",t:"select",o:fins,req:1},{k:"dataSugerida",r:"Data sugerida",t:"date"},
+        {k:"temProjeto",r:"Tem projeto ou SketchUp?",t:"select",o:[["nao","Não"],["sim","Sim"]]},{k:"mensagem",r:"Mensagem",t:"area",full:1,ph:"Conte o que precisa, se quiser."}])+
+      '<section class="sis-sec"><h2>'+ikb("ambiente")+'Ambientes</h2><div><div id="pb-ambs">'+ambPub(1)+'</div><button type="button" class="lnk pub__mais" data-add-amb>'+ikb("mais")+'Adicionar ambiente</button></div></section>'+
+      '<div class="pub__envio"><label class="chk"><input type="checkbox" id="pb-lgpd" required> Autorizo o uso destes dados para a proposta e o contato sobre o serviço (LGPD).</label><button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar pedido</button><p class="status" id="pb-status" role="status"></p></div></form>'+
+    '<section class="sis-sec" id="pb-ok" hidden></section>'+
+    '<p class="pub__pe">© 2026 Shylton Mavie</p></div>';
+  window.scrollTo(0,0);
+  var form=$("#form-pub",raiz),st=$("#pb-status",raiz),caixa=$("#pb-ambs",raiz);
+  function renum(){$$("[data-amb]",caixa).forEach(function(a,i){$(".pub__amb-topo span",a).textContent="Ambiente "+(i+1);});}
+  $("[data-add-amb]",raiz).addEventListener("click",function(){caixa.insertAdjacentHTML("beforeend",ambPub(caixa.children.length+1));$("[data-amb]:last-child input",caixa).focus();});
+  caixa.addEventListener("click",function(e){var b=e.target.closest("[data-rem-amb]");if(b){b.closest("[data-amb]").remove();renum();}});
+  form.addEventListener("submit",function(e){
+    e.preventDefault();
+    var obrig=$$("[required]",form).concat([$('[data-amb] [data-a="nome"]',caixa)]);
+    var falta=obrig.filter(function(x){return x.type==="checkbox"?!x.checked:!String(x.value).trim();});
+    obrig.forEach(function(x){if(x.type!=="checkbox")x.setAttribute("aria-invalid",falta.indexOf(x)>-1?"true":"false");});
+    if(falta.length){st.className="status erro";st.textContent=$("#pb-lgpd",form).checked?"Preencha os campos marcados com *.":"Preencha os campos marcados com * e marque a autorização de uso dos dados.";falta[0].focus();return;}
+    var v={};$$("[data-k]",form).forEach(function(x){v[x.getAttribute("data-k")]=String(x.value).trim();});
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)){st.className="status erro";st.textContent="Confira o e-mail: ele precisa ter o formato nome@dominio.com.";$('[data-k="email"]',form).focus();return;}
+    var d={nome:v.nome,telefone:v.telefone,email:v.email,local:v.local,finalidade:v.finalidade,dataSugerida:v.dataSugerida,temProjeto:v.temProjeto==="sim",mensagem:v.mensagem,
+      ambientes:$$("[data-amb]",caixa).map(function(a){return {nome:String($('[data-a="nome"]',a).value).trim(),m2:String($('[data-a="m2"]',a).value).trim()};}).filter(function(a){return a.nome||a.m2;}),
+      origem:"link",lgpd:true,criadoEm:agoraISO()};
+    var btn=$("button[type=submit]",form);btn.disabled=true;st.className="status";st.textContent="Enviando…";
+    preparar().then(function(){
+      if(Sessao.supa&&Sessao.conta!=="adm")return SB.from(TAB).insert({colecao:"pedidos",id:uid(),dados:d}).then(okSb);
+      if(Store.modo==="db"&&Sessao.conta!=="adm")throw {code:"sem_permissao"};
+      return criarProposta(d);
+    }).then(function(){
+      form.hidden=true;var ok=$("#pb-ok",raiz);ok.hidden=false;
+      ok.innerHTML='<h2>'+ikb("ok")+'Pedido enviado</h2><div><p>Obrigado! Shylton Mavie entrará em contato em até 3 dias pelo WhatsApp ou e-mail que você informou. Fotos e projeto do ambiente podem ser enviados nessa conversa.</p>'+
+        (Store.modo==="local"?'<p class="nota">Demonstração: a proposta foi criada na área restrita deste navegador.</p>':'')+'</div>';
+      window.scrollTo(0,0);
+    },function(){
+      btn.disabled=false;st.className="status erro";
+      var txt="Olá, Shylton! Quero pedir uma proposta de produção de ambiente.\nNome: "+d.nome+"\nLocal: "+d.local+"\nFinalidade: "+(FINALIDADES[d.finalidade]||"")+"\nAmbientes: "+d.ambientes.map(function(a){return a.nome+(a.m2?" ("+a.m2+" m²)":"");}).join(", ")+"\nData sugerida: "+(dataBR(d.dataSugerida)||"a combinar");
+      st.innerHTML='Não foi possível enviar agora. <a class="lnk" href="'+esc(waLink(PADRAO.whatsappAdm,txt))+'" target="_blank" rel="noopener">'+ikb("whats")+'Mandar o pedido pelo WhatsApp ↗</a>';
+    });
+  });
+}
 
 /* ---------- exportar ---------- */
 Object.assign(SIS,{
@@ -943,7 +1101,7 @@ Object.assign(SIS,{
   FINALIDADES:FINALIDADES,FINALIDADE_CAPS:FINALIDADE_CAPS,ST:ST,tag:tag,opcoes:opcoes,PADRAO:PADRAO,cfg:cfg,calcular:calcular,
   Store:Store,proxNum:proxNum,Sessao:Sessao,ehAdm:ehAdm,preparar:preparar,sincAcesso:sincAcesso,membroLiberado:membroLiberado,
   trata:trata,mostrar:mostrar,esconder:esconder,render:render,
-  campo:campo,campos:campos,lerCampos:lerCampos,validar:validar,modal:modal,modalForm:modalForm,fecharModal:fecharModal,erroGravar:erroGravar,
+  campo:campo,campos:campos,lerCampos:lerCampos,validar:validar,modal:modal,modalForm:modalForm,confirmar:confirmar,fecharModal:fecharModal,erroGravar:erroGravar,
   subir:subir,urlArquivo:urlArquivo,salvarArquivo:salvarArquivo,logoSVG:logoSVG,
   novaProposta:novaProposta,listaAmbientes:listaAmbientes,msgAdm:msgAdm,msgCliente:msgCliente,ligarPedido:ligarPedido
 });

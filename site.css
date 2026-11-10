@@ -233,6 +233,15 @@ html:has(#v-inicio:not([hidden])){scroll-snap-type:y mandatory}
 .copiar--bloco{align-self:flex-start}
 .fduas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-24) var(--col)}
 .campo{display:flex;flex-direction:column;gap:var(--s-8);font-size:var(--t-leg)}
+.campo[hidden],.fduas > [hidden]{display:none!important}
+/* REGRA (pedido da Isys, 2026-11-09): caixas dos formulários sempre alinhadas, mesmo com rótulo em 2 linhas.
+   Mesmo recurso da área restrita (.fgrid): cada campo é uma subgrade (rótulo | caixa | extra) que divide as linhas com o vizinho. */
+@supports (grid-template-rows:subgrid){
+  .fduas{row-gap:0;margin-top:calc(var(--s-24) * -1)}
+  .fduas > *{grid-row:span 3;margin-top:var(--s-24);align-self:start}
+  .fduas > .campo{display:grid;grid-template-rows:subgrid;row-gap:var(--s-8);align-self:stretch;align-items:end;margin-top:0;padding-top:calc(var(--s-24) - 4px)}
+  .fduas > .campo > *{align-self:start}
+}
 .campo input,.campo textarea,.campo select{font:inherit;font-size:var(--t-corpo);border:0;border-bottom:1px solid var(--linha);border-radius:0;background:none;padding:var(--s-8) 0;color:var(--tinta);transition:border-color var(--rapido)}
 .campo input:focus,.campo select:focus,.campo textarea:focus{border-color:var(--tinta)}
 .campo textarea{border:1px solid var(--linha);min-height:112px;resize:vertical;padding:var(--s-8)}
