@@ -118,7 +118,9 @@ function secIni(t,sub,itens,vazio){return '<section class="sis-sec"><h2>'+t+'<sm
 M.inicio={vivo:true,render:function(m){
   var h=S.hoje(),lim=S.somaDias(h,30);
   var props=St.list("propostas"),cons=St.list("contratos"),prods=St.list("producoes"),tars=St.list("tarefas");
-  var avs=St.list("avisos").filter(function(a){return !a.enviado&&!a.lembrete;}).sort(function(a,b){return porData(a,b,"criadoEm");});
+  /* Aviso de proposta que já foi excluída não aparece (avisos antigos, de antes da limpeza ao excluir) */
+  var propOk=St.modo!=="db"||St.carregado.propostas;
+  var avs=St.list("avisos").filter(function(a){return !a.enviado&&!a.lembrete&&!(propOk&&a.propostaId&&!St.get("propostas",a.propostaId));}).sort(function(a,b){return porData(a,b,"criadoEm");});
   var novas=props.filter(function(p){return stProp(p)==="nova";}).length;
   var aAssinar=cons.filter(function(c){return c.status==="rascunho"||c.status==="enviado";}).length;
   var proxP=prods.filter(function(p){return p.status!=="cancelada"&&p.dataInicio>=h&&p.dataInicio<=lim;}).length;
@@ -319,7 +321,11 @@ M.proposta={render:function(m,id,vista){
   function ligar(){
     $("[data-salvar]",m).addEventListener("click",function(){var novo=!ed.id,ja=ed.contratoCriado;salvar().then(function(){if(novo&&ja===ed.contratoCriado)desenhar();},function(e){if(!e||e.code!=="validacao")S.erroGravar(e);});});
     $("[data-pdf]",m).addEventListener("click",function(){S.propostaPDF(ed);});
-    var x=$("[data-excluir]",m);if(x)x.addEventListener("click",function(){S.confirmar({titulo:"Excluir a proposta "+ed.num+"?"}).then(function(sim){if(!sim)return;St.excluir("propostas",ed.id).then(function(){location.hash="#adm/propostas";},S.erroGravar);});});
+    var x=$("[data-excluir]",m);if(x)x.addEventListener("click",function(){S.confirmar({titulo:"Excluir a proposta "+ed.num+"?"}).then(function(sim){if(!sim)return;var pid=ed.id;
+      St.excluir("propostas",pid).then(function(){
+        /* os avisos de WhatsApp desta proposta saem junto do Início */
+        return Promise.all(St.list("avisos").filter(function(a){return a.propostaId===pid;}).map(function(a){return St.excluir("avisos",a.id).catch(function(){});}));
+      }).then(function(){location.hash="#adm/propostas";},S.erroGravar);});});
     $("[data-add-amb]",m).addEventListener("click",function(){ed.ambientes.push({nome:"",m2:"",fotos:[]});$("#ed-amb",m).innerHTML=ambHTML();recalc(true);});
     $("#ed-amb",m).addEventListener("click",function(e){var b=e.target.closest("[data-rem-amb]");if(!b)return;ed.ambientes.splice(+b.getAttribute("data-rem-amb"),1);if(!ed.ambientes.length)ed.ambientes.push({nome:"",m2:"",fotos:[]});$("#ed-amb",m).innerHTML=ambHTML();recalc(true);});
     $$("[data-aba]",m).forEach(function(b){b.addEventListener("click",function(){aba=b.getAttribute("data-aba");$$("[data-aba]",m).forEach(function(x){x.setAttribute("aria-selected",x===b?"true":"false");});previa();});});
