@@ -83,6 +83,7 @@ function carregar(src){
     var ja=document.querySelector('script[data-src="'+src+'"]');
     if(ja){if(ja.getAttribute("data-ok"))ok();else{ja.addEventListener("load",function(){ok();});ja.addEventListener("error",erro);}return;}
     var s=document.createElement("script");s.src=src;s.setAttribute("data-src",src);
+    if(SRI[src]){s.integrity=SRI[src];s.crossOrigin="anonymous";} /* só roda se o arquivo do CDN for exatamente este */
     s.onload=function(){s.setAttribute("data-ok","1");ok();};s.onerror=function(){erro(new Error("script"));};document.head.appendChild(s);
   });
 }
@@ -95,6 +96,10 @@ function carregar(src){
    • símbolos como círculos e retângulos; fotos recortadas da imagem original, na resolução dela (até 3×).
    Se algo falhar, sai em imagem de alta resolução (×3) e, em último caso, abre a impressão. */
 var JSPDF="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",H2C="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+/* Segurança (2026-11-15): impressão digital de cada biblioteca externa. Trocou a versão? Recalcule. */
+var SRI={};
+SRI[JSPDF]="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk";
+SRI[H2C]="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H";
 var PESOS_PDF={"lexend":[200,300,400,500,600],"lexend exa":[300,600]}; /* os pesos que a página carrega (sis-base.js) */
 var FONTES_B64={},JOSEFIN=null,ctxMede=null;
 function novoPDF(){return new window.jspdf.jsPDF({orientation:"landscape",unit:"px",format:[1280,720],hotfixes:["px_scaling"],compress:true});}

@@ -235,14 +235,14 @@ M.proposta={render:function(m,id,vista){
         '<label class="f">Ambiente<input type="text" data-ak="nome" value="'+esc(a.nome)+'" placeholder="Ex.: sala de estar"></label>'+
         '<label class="f">m²<input type="text" inputmode="decimal" data-ak="m2" value="'+esc(a.m2)+'"></label>'+
         '<button type="button" class="rep__x" data-rem-amb="'+i+'">'+ik("excluir")+'Remover</button>'+
-        (fotos.length?'<div class="miniaturas">'+fotos.map(function(f){var u=S.urlArquivo(f);return u?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="'+esc(f.nome)+'" loading="lazy"></a>':'<span>'+esc(f.nome)+'</span>';}).join("")+'</div>':'')+
+        (fotos.length?'<div class="miniaturas">'+fotos.map(function(f){var u=esc(S.urlArquivo(f));return u?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="'+esc(f.nome)+'" loading="lazy"></a>':'<span>'+esc(f.nome)+'</span>';}).join("")+'</div>':'')+
         (temAssets?'<label class="f f--full" style="grid-column:1/-1">Adicionar fotos<input type="file" accept="image/*" multiple data-fotos="'+i+'"></label>':'')+
       '</div>';
     }).join("");
   }
   function arquivosHTML(){
     var l=ed.arquivos||[];
-    return l.length?'<div class="miniaturas">'+l.map(function(f){var u=S.urlArquivo(f);return u?'<a class="lnk" href="'+u+'" target="_blank" rel="noopener">'+esc(f.nome)+' ↗</a>':'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div>':'<p class="nota">Nenhum arquivo de projeto enviado.</p>';
+    return l.length?'<div class="miniaturas">'+l.map(function(f){var u=esc(S.urlArquivo(f));return u?'<a class="lnk" href="'+u+'" target="_blank" rel="noopener">'+esc(f.nome)+' ↗</a>':'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div>':'<p class="nota">Nenhum arquivo de projeto enviado.</p>';
   }
   function calcHTML(){
     var r=S.calcular(ed);
@@ -260,7 +260,7 @@ M.proposta={render:function(m,id,vista){
         {k:"finalidade",r:"Finalidade",t:"select",o:opcoesFin()},
         {k:"dataSugerida",r:"Data sugerida",t:"date"},{k:"temProjeto",r:"Tem projeto ou arquivo do SketchUp",t:"check",full:1}],ed)+
         '<div class="f f--full">Arquivos de projeto'+arquivosHTML()+'</div>'+
-        ((ed.fotos||[]).length?'<div class="f f--full">Fotos do espaço<div class="miniaturas">'+ed.fotos.map(function(f){var u=S.urlArquivo(f);return u?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="'+esc(f.nome)+'" loading="lazy"></a>':'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div></div>':'')+
+        ((ed.fotos||[]).length?'<div class="f f--full">Fotos do espaço<div class="miniaturas">'+ed.fotos.map(function(f){var u=esc(S.urlArquivo(f));return u?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="'+esc(f.nome)+'" loading="lazy"></a>':'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div></div>':'')+
         S.campos([{k:"mensagem",r:"Mensagem do cliente",t:"area",full:1}],ed)+'</div></section>'+
       '<section class="ed__bloco"><h2>'+ik("ambiente")+'Ambientes</h2><div class="rep" id="ed-amb">'+ambHTML()+'</div><p style="margin-top:var(--s-12)"><button type="button" class="lnk" data-add-amb>'+ik("mais")+'Adicionar ambiente</button></p></section>'+
       '<section class="ed__bloco"><h2>'+ik("calc")+'Calculadora<small>valores-base em <a class="lnk" href="#adm/ajustes">Ajustes</a></small></h2><ul class="calc" id="ed-calc">'+calcHTML()+'</ul><div class="fgrid">'+S.campos([

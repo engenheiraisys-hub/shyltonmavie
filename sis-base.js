@@ -8,7 +8,9 @@ var SIS = window.SIS = window.SIS || {};
 var SUPA={
   url:"https://emzhlblfqkzsjgxfszmy.supabase.co",
   chave:"sb_publishable_MiKTMg0SxTnEh-my20Uf0Q_Sri4xdkI",
-  lib:"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"
+  lib:"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js",
+  /* Segurança: o navegador só roda a biblioteca se ela for exatamente esta (protege contra CDN adulterado). Trocou a versão? Recalcule. */
+  sri:"sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R"
 };
 var SB=null;
 function noClaude(){return !!(window.claude&&typeof window.claude.use==="function");}
@@ -221,7 +223,7 @@ function proxNum(col,prefixo){
 function carregarSupa(){
   if(SB)return Promise.resolve(SB);
   return new Promise(function(ok,erro){
-    var s=document.createElement("script");s.src=SUPA.lib;s.onload=ok;s.onerror=erro;document.head.appendChild(s);
+    var s=document.createElement("script");s.src=SUPA.lib;s.integrity=SUPA.sri;s.crossOrigin="anonymous";s.onload=ok;s.onerror=erro;document.head.appendChild(s);
   }).then(function(){
     SB=window.supabase.createClient(SUPA.url,SUPA.chave,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:"implicit"}});
     SB.auth.onAuthStateChange(function(ev){if(ev==="PASSWORD_RECOVERY"){Sessao.recuperar=true;setTimeout(render,0);}});
@@ -458,6 +460,8 @@ function extras(){
 }
 function mostrar(){
   var raiz=document.getElementById("sis");raiz.hidden=false;
+  /* Segurança: no domínio próprio a área restrita não abre dentro de outro site (moldura usada para enganar cliques) */
+  if(!noClaude()&&SUPA.url&&window.top!==window.self){raiz.innerHTML='<p class="vazio-sis" style="padding:var(--s-48) var(--g-l)">Abra a área restrita direto em <a class="lnk" href="https://shyltonmavie.com/#adm" target="_top" rel="noopener">shyltonmavie.com</a>.</p>';return;}
   if(!raiz.firstChild)raiz.innerHTML='<p class="vazio-sis" style="padding:var(--s-48) var(--g-l)">Carregando…</p>';
   Promise.all([preparar(),extras()]).then(render,function(){raiz.innerHTML='<p class="vazio-sis" style="padding:var(--s-48) var(--g-l)">Não foi possível abrir a área restrita. Recarregue a página.</p>';});
 }
@@ -839,8 +843,15 @@ function subir(f){
     return assets.upload(f,{type:tipo}).then(function(r){reg.id=r.id;reg.tipo=tipo;return reg;},function(){reg.nota="não foi possível guardar";return reg;});
   });
 }
-function urlArquivo(a){if(!a||!a.id)return "";var id=String(a.id);return id.indexOf("sb:")===0?urlSupa(id.slice(3)):"/_blob/"+id;}
+/* Segurança (2026-11-15): só aceita id gerado pelo próprio site. Um id com aspas ou ".." vindo de fora (pedido sem login)
+   viraria código na tela do adm; esses ficam sem link. */
+function urlArquivo(a){
+  if(!a||!a.id)return "";var id=String(a.id);
+  if(id.indexOf("sb:")===0){var c=id.slice(3);return /^[\w.-]+(\/[\w.-]+)*$/.test(c)&&c.indexOf("..")<0?urlSupa(c):"";}
+  return /^[\w-]{1,80}$/.test(id)?"/_blob/"+id:"";
+}
 function salvarArquivo(nome,dados){
+  nome=String(nome||"arquivo").replace(/[\\\/:*?"<>|\u0000-\u001f]+/g,"-").replace(/\s+/g," ").trim().slice(0,150); /* nome vindo de cadastro de fora não leva caracteres proibidos */
   return usar("downloads").then(function(dl){
     if(dl)return dl.save({filename:nome,data:dados}).then(function(){toast("Arquivo pronto: "+nome);return true;},function(e){
       if(e&&e.code==="declined"){toast("Download cancelado.");return false;}
@@ -905,7 +916,7 @@ function criarProposta(d){
   var pc=cli?Promise.resolve(cli.id):Store.salvar("clientes",fixo,{tipo:"PF",nome:x.nome,email:x.email,telefone:x.telefone,cidade:x.local,origem:"Pedido de proposta pelo "+(link?"link":"site"),criadoEm:agoraISO()});
   return pc.then(function(clienteId){
     var p=novaProposta({origem:link?"link":"site",clienteId:clienteId,cliente:{nome:x.nome,empresa:"",codigo:"",telefone:x.telefone,email:x.email,local:x.local},
-      finalidade:FINALIDADES[d.finalidade]?d.finalidade:"foto",ambientes:amb,fotos:link?fotosLink(d.fotos):(Array.isArray(d.fotos)?d.fotos:[]),temProjeto:!!d.temProjeto,arquivos:Array.isArray(d.arquivos)?d.arquivos:[],
+      finalidade:FINALIDADES[d.finalidade]?d.finalidade:"foto",ambientes:amb,fotos:link?fotosLink(d.fotos):(Array.isArray(d.fotos)?d.fotos:[]),temProjeto:!!d.temProjeto,arquivos:!link&&Array.isArray(d.arquivos)?d.arquivos:[], /* o link não envia arquivos: o que vier é ignorado */
       dataSugerida:/^\d{4}-\d{2}-\d{2}$/.test(d.dataSugerida||"")?d.dataSugerida:"",mensagem:limpo(d.mensagem,2000)});
     var r=calcular(p);p.valor=r.total;p.dias=r.dias;p.ajudantes=r.ajudantes;
     return Store.salvar("propostas",fixo,p).then(function(id){
