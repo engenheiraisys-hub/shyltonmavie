@@ -217,6 +217,10 @@ a.item{transition:background var(--rapido)}
 .sis button.lnk,.modal button.lnk,.pub button.lnk,.entrada button.lnk{display:inline-flex;align-items:center;gap:6px}
 button.lnk .ik,.rep__x .ik,.k-nova .ik,.cal-nav .ik,.sb__fechar .ik{width:14px;height:14px}
 a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-align:middle} /* links de ação ao lado de botões; links dentro de frases ficam sem ícone */
+/* Link de ação com ícone, seja botão ou link: mesma caixa e mesmo alinhamento em todas as telas.
+   Antes o botão (inline-flex) ficava 4 px acima do link (inline) ao lado, ex.: "Adicionar parceiro" × "Cadastrar parceiro" (2026-11-15). */
+.lnk:has(> .ik:first-child){display:inline-flex;align-items:center;gap:6px;vertical-align:middle}
+.lnk:has(> .ik:first-child) > .ik:first-child{flex:none;margin:0}
 .f textarea{min-height:88px;resize:vertical;line-height:var(--lh)}
 .f input:focus-visible,.f select:focus-visible,.f textarea:focus-visible{outline:none;border-color:var(--tinta);box-shadow:inset 0 0 0 1px var(--tinta)}
 .f input[aria-invalid="true"],.f select[aria-invalid="true"],.f textarea[aria-invalid="true"]{border-color:var(--erro)}
@@ -318,6 +322,10 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .kcard__pe button{display:inline-grid;place-items:center;color:var(--tinta-2);min-width:28px;min-height:28px;border-radius:var(--r-ctl);transition:color var(--rapido),background var(--rapido)}
 .kcard__pe button:hover{color:var(--tinta);background:var(--hover)}
 .kcol--feita .kcard h3{text-decoration:line-through;text-decoration-color:var(--tinta-2)}
+.kcard__mov{display:flex;align-items:center;flex:none}
+/* Google Meet na janela da tarefa (2026-11-15): só o aviso, sem link para entrar */
+.t-meet{display:flex;align-items:center;gap:6px;margin-top:var(--s-16)}
+.t-meet .ik{width:16px;height:16px;flex:none}
 .k-nova{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:var(--toque);margin-top:var(--s-12);padding-top:2px;border:1px dashed var(--pedra);border-radius:var(--r-ctl);font-size:var(--t-mini);font-weight:600;letter-spacing:var(--ls-mini);text-transform:uppercase;color:var(--tinta-2);transition:color var(--rapido),border-color var(--rapido),background var(--rapido)}
 .k-nova:hover{color:var(--tinta);border-color:var(--tinta-2);background:var(--branco)}
 @media (max-width:820px){.kanban{grid-template-columns:minmax(0,1fr)}.kcol{min-height:0}}

@@ -532,6 +532,9 @@ var ICO={
   menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',
   anterior:'<path d="M14.5 6l-6 6 6 6"/>',
   proximo:'<path d="M9.5 6l6 6-6 6"/>',
+  acima:'<path d="M6 14.5l6-6 6 6"/>',
+  abaixo:'<path d="M6 9.5l6 6 6-6"/>',
+  video:'<rect x="3.5" y="6.5" width="12" height="11" rx="1.5"/><path d="M15.5 10.5l5-3v9l-5-3"/>',
   trocar:'<path d="M4.5 12a7.5 7.5 0 0 1 13-5.1M19.5 12a7.5 7.5 0 0 1-13 5.1"/><path d="M17.5 3.5V7H14M6.5 20.5V17H10"/>',
   link:'<path d="M10.5 13.5a4 4 0 0 0 5.6 0l3-3a4 4 0 0 0-5.6-5.6l-1 1"/><path d="M13.5 10.5a4 4 0 0 0-5.6 0l-3 3a4 4 0 0 0 5.6 5.6l1-1"/>',
   calc:'<path d="M5.5 3.5h13v17h-13z"/><path d="M8.5 7.5h7M8.5 12h1M11.5 12h1M14.5 12h1M8.5 16h1M11.5 16h1M14.5 16h1"/>',
@@ -1019,7 +1022,7 @@ var END_PUB=[{k:"cep",r:"CEP",req:1,ac:"postal-code"},{k:"endereco",r:"Rua / ave
   {k:"bairro",r:"Bairro",req:1},{k:"cidade",r:"Cidade",req:1,ac:"address-level2"},{k:"uf",r:"Estado",t:"select",o:[["","—"]].concat(UFS),req:1}];
 /* Parceiros e fornecedores (pedido da Isys, 2026-11-15): 5 categorias e a mesma ficha para todas, sem valor.
    Usadas no link cadastro-parceiro e na tela Parceiros. [chave, nome, cor] */
-var CATS_PARC=[["folhagem","Folhagem","#6E7B62"],["moveis","Móveis soltos","#7D7A75"],["decoracao","Objetos de decoração","#5F6F7A"],["arte","Obra de arte","#9A5B4E"],["especiais","Objetos especiais","#B08A3E"]];
+var CATS_PARC=[["folhagem","Folhagem","#6E7B62"],["moveis","Móveis soltos","#7D7A75"],["decoracao","Objetos","#5F6F7A"],["arte","Obra de arte","#9A5B4E"],["especiais","Objetos especiais","#B08A3E"]];
 SIS.publica=function(raiz,h){
   var cli=h==="cadastro-cliente",parc=h==="cadastro-parceiro",col=cli?"clientes":parc?"parceiros":"equipe";
   var corpo=parc?
