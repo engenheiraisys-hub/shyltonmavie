@@ -343,13 +343,13 @@ function enderecoCli(c){
    a lista de Clientes ("completos/incompletos") e o cadastro usam esta função, para nunca dizer completo quando o contrato sai com lacunas. */
 function faltaCliente(c){
   if(!c)return ["cliente"];
-  var req=c.tipo==="PJ"?[["nome","razão social"],["doc","CNPJ"],["end","endereço"],["representante","representante legal"],["repCpf","CPF do representante"],["email","e-mail"],["telefone","telefone"]]
+  var req=S.ehPJ(c.tipo)?[["nome","razão social"],["doc","CNPJ"],["end","endereço"],["representante","representante legal"],["repCpf","CPF do representante"],["email","e-mail"],["telefone","telefone"]]
     :[["nome","nome"],["nacionalidade","nacionalidade"],["estadoCivil","estado civil"],["profissao","profissão"],["doc","CPF"],["end","endereço"],["email","e-mail"],["telefone","telefone"]];
   return req.filter(function(r){var x=r[0]==="end"?enderecoCli(c):c[r[0]];return !String(x==null?"":x).trim();}).map(function(r){return r[1];});
 }
 function qualifContratante(c){
   if(!c)return falta("dados do contratante: escolha um cliente");
-  if(c.tipo==="PJ"){
+  if(S.ehPJ(c.tipo)){ /* loja ou escritório de arquitetura */
     return v(c.nome,"razão social")+", pessoa jurídica de direito privado, inscrita no CNPJ sob o nº "+v(c.doc,"CNPJ")+", com sede em "+v(enderecoCli(c),"endereço")+
       ", neste ato representada por "+v(c.representante,"representante legal")+", inscrito(a) no CPF sob o nº "+v(c.repCpf,"CPF do representante")+", e-mail "+v(c.email,"e-mail")+", telefone "+v(c.telefone,"telefone")+".";
   }
@@ -395,7 +395,7 @@ function contexto(ct){
     foro:v(c.foro,"foro"),cidade:v(c.cidade,"cidade"),data:c.dataAssinatura?S.dataExtenso(c.dataAssinatura):falta("data da assinatura"),
     instagram:k.instagram||"@shyltu",
     nomeCli:cli?v(cli.nome,"nome do contratante"):falta("nome do contratante"),
-    docCli:cli?(cli.tipo==="PJ"?"CNPJ ":"CPF ")+v(cli.doc,cli.tipo==="PJ"?"CNPJ":"CPF"):"",
+    docCli:cli?(S.ehPJ(cli.tipo)?"CNPJ ":"CPF ")+v(cli.doc,S.ehPJ(cli.tipo)?"CNPJ":"CPF"):"",
     nomeK:v(k.nome,"nome do contratado"),cpfK:"CPF "+v(k.cpf,"CPF do contratado")+(k.cnpj?" · CNPJ "+k.cnpj:"")
   };
 }

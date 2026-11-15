@@ -446,7 +446,7 @@ var PAI={proposta:"propostas",contrato:"contratos",producao:"producoes",revisao:
 SIS.mod={};
 var vista=null;
 function rotaAtual(){return (location.hash||"").slice(1);}
-function trata(h){return /^adm(\/|$)/.test(h)||h==="cadastro-cliente"||h==="pedido-proposta"||/(^|&)(access_token|error_description)=/.test(h);}
+function trata(h){return /^adm(\/|$)/.test(h)||h==="cadastro-cliente"||h==="cadastro-parceiro"||h==="pedido-proposta"||/(^|&)(access_token|error_description)=/.test(h);}
 /* Estilos, fontes dos documentos e módulos só são baixados quando a área restrita abre */
 var extrasP=null;
 function extras(){
@@ -477,7 +477,7 @@ var mudou=debounce(function(){
 function render(){
   var raiz=document.getElementById("sis");if(!raiz||raiz.hidden)return;
   var h=rotaAtual();
-  if(h==="cadastro-cliente"){vista=null; /* equipe não tem link público: só o adm cadastra membros */SIS.publica(raiz,h);return;}
+  if(h==="cadastro-cliente"||h==="cadastro-parceiro"){vista=null; /* equipe não tem link público: só o adm cadastra membros */SIS.publica(raiz,h);return;}
   if(h==="pedido-proposta"){vista=null;pedidoPub(raiz);return;}
   var ps=h.split("/"),nome=ps[1]||"",id=ps.slice(2).join("/");
   if(!Sessao.papel){telaEntrada(raiz);return;}
@@ -986,15 +986,24 @@ function ligarPedido(){
   });
 }
 
-/* Representante legal e CPF dele só aparecem para Empresa (pedido da Isys, 2026-11-09): no Novo cliente/cadastro e no formulário do link.
-   obrig=true (formulário público): para Empresa os dois passam a ser obrigatórios, porque o contrato precisa deles. */
+/* Tipos de cliente (pedido da Isys, 2026-11-15): pessoa física, loja ou escritório de arquitetura.
+   Loja e escritório são pessoa jurídica no contrato (CNPJ + representante legal).
+   "PJ" é o tipo antigo ("Empresa"): continua valendo como pessoa jurídica até alguém escolher loja ou escritório. */
+var TIPOS_CLI=[["PF","Pessoa física"],["loja","Loja"],["escritorio","Escritório de arquitetura"]];
+function ehPJ(t){return t==="PJ"||t==="loja"||t==="escritorio";}
+function nomeTipoCli(t){if(t==="PJ")return "Empresa (sem tipo)";var x=TIPOS_CLI.filter(function(o){return o[0]===t;})[0];return x?x[1]:"Pessoa física";}
+function opcoesTipoCli(atual){return atual==="PJ"?TIPOS_CLI.concat([["PJ","Empresa (escolha loja ou escritório)"]]):TIPOS_CLI;}
+/* Campos que dependem do tipo (pedido da Isys, 2026-11-09/15), no Novo cliente/cadastro e no formulário do link:
+   loja e escritório mostram representante legal e CPF dele; pessoa física mostra RG, nacionalidade, estado civil e profissão.
+   obrig=true (formulário público): os campos que aparecem são obrigatórios; os escondidos não são enviados. */
+var SO_PJ=["representante","repCpf"],SO_PF=["rg","nacionalidade","estadoCivil","profissao"];
 function ligarTipoCliente(raiz,obrig){
   var sel=$('[data-k="tipo"]',raiz);if(!sel)return;
   function aplicar(){
-    var pj=sel.value==="PJ";
-    ["representante","repCpf"].forEach(function(k){
-      var i=$('[data-k="'+k+'"]',raiz);if(!i)return;var l=i.closest("label")||i.parentNode;
-      l.hidden=!pj;if(obrig){if(pj)i.setAttribute("required","");else i.removeAttribute("required");}
+    var pj=ehPJ(sel.value);
+    SO_PJ.map(function(k){return [k,pj];}).concat(SO_PF.map(function(k){return [k,!pj];})).forEach(function(x){
+      var i=$('[data-k="'+x[0]+'"]',raiz);if(!i)return;var l=i.closest("label")||i.parentNode,mostra=x[1];
+      l.hidden=!mostra;if(obrig){if(mostra)i.setAttribute("required","");else{i.removeAttribute("required");i.setAttribute("aria-invalid","false");}}
     });
   }
   sel.addEventListener("change",aplicar);aplicar();
@@ -1006,21 +1015,32 @@ var UFS="AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC
 /* Cadastro pelo link: mesmo visual da área restrita (página branca, blocos cinza com ícone no título,
    campos .fgrid alinhados, botão escuro); sem texto de apresentação (pedido da Isys, 2026-11-09) */
 function blocoPub(ic,tit,lista){return '<section class="sis-sec"><h2>'+ikb(ic)+esc(tit)+'</h2><div class="fgrid">'+campos(lista,{})+'</div></section>';}
+var END_PUB=[{k:"cep",r:"CEP",req:1,ac:"postal-code"},{k:"endereco",r:"Rua / avenida",req:1,ac:"address-line1"},{k:"numero",r:"Número",req:1},{k:"complemento",r:"Complemento (se houver)"},
+  {k:"bairro",r:"Bairro",req:1},{k:"cidade",r:"Cidade",req:1,ac:"address-level2"},{k:"uf",r:"Estado",t:"select",o:[["","—"]].concat(UFS),req:1}];
+/* Parceiros e fornecedores (pedido da Isys, 2026-11-15): 5 categorias e a mesma ficha para todas, sem valor.
+   Usadas no link cadastro-parceiro e na tela Parceiros. [chave, nome, cor] */
+var CATS_PARC=[["folhagem","Folhagem","#6E7B62"],["moveis","Móveis soltos","#7D7A75"],["decoracao","Objetos de decoração","#5F6F7A"],["arte","Obra de arte","#9A5B4E"],["especiais","Objetos especiais","#B08A3E"]];
 SIS.publica=function(raiz,h){
-  var cli=h==="cadastro-cliente";
-  var corpo=cli?
-    blocoPub("clientes","Seus dados",[{k:"tipo",r:"Você é",t:"select",o:[["PF","Pessoa física"],["PJ","Empresa"]]},{k:"nome",r:"Nome completo ou razão social",req:1,ac:"name"},
-      {k:"doc",r:"CPF ou CNPJ",req:1},{k:"rg",r:"RG (pessoa física)"},{k:"nacionalidade",r:"Nacionalidade",ph:"brasileira"},{k:"estadoCivil",r:"Estado civil"},
-      {k:"profissao",r:"Profissão",full:1},{k:"representante",r:"Representante legal *"},{k:"repCpf",r:"CPF do representante *"}])+
-    blocoPub("contato","Contato",[{k:"email",r:"E-mail",t:"email",req:1,ac:"email"},{k:"telefone",r:"Telefone / WhatsApp",t:"tel",req:1,ac:"tel"},{k:"instagram",r:"Instagram"}])+
-    blocoPub("local","Endereço",[{k:"cep",r:"CEP",ac:"postal-code"},{k:"endereco",r:"Rua / avenida",req:1,ac:"address-line1"},{k:"numero",r:"Número",req:1},{k:"complemento",r:"Complemento"},
-      {k:"bairro",r:"Bairro"},{k:"cidade",r:"Cidade",req:1,ac:"address-level2"},{k:"uf",r:"Estado",t:"select",o:[["","—"]].concat(UFS),req:1}])
+  var cli=h==="cadastro-cliente",parc=h==="cadastro-parceiro",col=cli?"clientes":parc?"parceiros":"equipe";
+  var corpo=parc?
+    /* Tudo obrigatório, menos complemento e site */
+    blocoPub("parceiros","Empresa",[{k:"cat",r:"Categoria",t:"select",o:[["","— escolha —"]].concat(CATS_PARC),req:1},{k:"fornecedor",r:"Nome da empresa",req:1,ac:"organization"},
+      {k:"cnpj",r:"CNPJ",req:1,ph:"00.000.000/0000-00"},{k:"responsavel",r:"Responsável",req:1,ac:"name"},{k:"produto",r:"O que você oferece",req:1,full:1,ph:"Ex.: vasos, luminárias, tapetes"}])+
+    blocoPub("contato","Contato",[{k:"contato",r:"Telefone / WhatsApp",t:"tel",req:1,ac:"tel"},{k:"email",r:"E-mail",t:"email",req:1,ac:"email"},{k:"instagram",r:"Instagram",req:1,ph:"@seuperfil"},{k:"site",r:"Site (se houver)"}])+
+    blocoPub("local","Endereço",END_PUB)
+    :cli?
+    blocoPub("clientes","Seus dados",[{k:"tipo",r:"Você é",t:"select",o:TIPOS_CLI},{k:"nome",r:"Nome completo ou razão social",req:1,ac:"name"},
+      {k:"doc",r:"CPF ou CNPJ",req:1},{k:"rg",r:"RG *"},{k:"nacionalidade",r:"Nacionalidade *",ph:"brasileira"},{k:"estadoCivil",r:"Estado civil *"},
+      {k:"profissao",r:"Profissão *",full:1},{k:"representante",r:"Representante legal *"},{k:"repCpf",r:"CPF do representante *"}])+
+    /* Tudo obrigatório (pedido da Isys, 2026-11-15), Instagram inclusive; só o complemento é opcional */
+    blocoPub("contato","Contato",[{k:"email",r:"E-mail",t:"email",req:1,ac:"email"},{k:"telefone",r:"Telefone / WhatsApp",t:"tel",req:1,ac:"tel"},{k:"instagram",r:"Instagram",req:1,ph:"@seuperfil"}])+
+    blocoPub("local","Endereço",END_PUB)
     :
     blocoPub("equipe","Seus dados",[{k:"nome",r:"Nome completo",req:1,ac:"name"},{k:"funcao",r:"Função",req:1,ph:"Ex.: assistente de produção, montagem, motorista"},{k:"cidade",r:"Cidade",req:1},{k:"pix",r:"Chave PIX"}])+
     blocoPub("contato","Contato",[{k:"email",r:"E-mail",t:"email",req:1,ac:"email"},{k:"telefone",r:"Telefone / WhatsApp",t:"tel",req:1,ac:"tel"}]);
-  var lgpd=cli?"Autorizo o uso destes dados para propostas, contrato e comunicação sobre o serviço (LGPD).":"Autorizo o uso destes dados para a organização das produções (LGPD).";
+  var lgpd=cli?"Autorizo o uso destes dados para propostas, contrato e comunicação sobre o serviço (LGPD).":parc?"Autorizo o uso destes dados no cadastro de fornecedores do Shylton Mavie (LGPD).":"Autorizo o uso destes dados para a organização das produções (LGPD).";
   raiz.innerHTML='<div class="pub"><header class="pub__topo"><a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, voltar ao site">'+logoSVG()+'</a><a class="lnk" href="#inicio">Voltar ao site</a></header>'+
-    '<div class="sis-cab"><h1>'+ikb(cli?"clientes":"equipe")+(cli?"Cadastro de cliente":"Cadastro da equipe")+'</h1></div>'+
+    '<div class="sis-cab"><h1>'+ikb(col==="parceiros"?"parceiros":cli?"clientes":"equipe")+(cli?"Cadastro de cliente":parc?"Cadastro de parceiro e fornecedor":"Cadastro da equipe")+'</h1></div>'+
     '<form id="form-pub" novalidate>'+corpo+
       '<div class="pub__envio"><label class="chk"><input type="checkbox" id="pb-lgpd" required> '+lgpd+'</label><button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar cadastro</button><p class="status" id="pb-status" role="status"></p></div></form>'+
     '<section class="sis-sec" id="pb-ok" hidden></section>'+
@@ -1033,19 +1053,20 @@ SIS.publica=function(raiz,h){
     var falta=$$("[required]",form).filter(function(x){return x.type==="checkbox"?!x.checked:!String(x.value).trim();});
     $$("[required]",form).forEach(function(x){if(x.type!=="checkbox")x.setAttribute("aria-invalid",falta.indexOf(x)>-1?"true":"false");});
     if(falta.length){st.className="status erro";st.textContent=$("#pb-lgpd",form).checked?"Preencha os campos marcados com *.":"Preencha os campos marcados com * e marque a autorização de uso dos dados.";falta[0].focus();return;}
-    var v={};$$("[data-k]",form).forEach(function(x){v[x.getAttribute("data-k")]=String(x.value).trim();});
+    var v={};$$("[data-k]",form).forEach(function(x){if(x.closest("[hidden]"))return;v[x.getAttribute("data-k")]=String(x.value).trim();}); /* campo escondido pelo tipo não vai */
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)){st.className="status erro";st.textContent="Confira o e-mail.";return;}
+    if(parc&&v.cnpj.replace(/\D/g,"").length!==14){st.className="status erro";st.textContent="Confira o CNPJ (14 números).";$('[data-k="cnpj"]',form).focus();return;}
     v.criadoEm=agoraISO();v.lgpd=true;
-    if(cli){v.origem="Link de cadastro";}else{v.status="pendente";v.acesso="colaborador";v.userId=Sessao.userId||"";}
+    if(cli||parc){v.origem="Link de cadastro";}else{v.status="pendente";v.acesso="colaborador";v.userId=Sessao.userId||"";}
     st.className="status";st.textContent="Enviando…";
     preparar().then(function(){
       /* Domínio próprio: o visitante só consegue criar (nunca ler ou alterar) um cadastro novo, que o adm vê na área restrita */
-      if(Sessao.supa&&Sessao.conta!=="adm")return SB.from(TAB).insert({colecao:cli?"clientes":"equipe",id:uid(),dados:v}).then(okSb);
+      if(Sessao.supa&&Sessao.conta!=="adm")return SB.from(TAB).insert({colecao:col,id:uid(),dados:v}).then(okSb);
       if(Store.modo==="db"&&Sessao.conta!=="adm")throw {code:"sem_permissao"};
-      return Store.salvar(cli?"clientes":"equipe",null,v);
+      return Store.salvar(col,null,v);
     }).then(function(){
       form.hidden=true;var ok=$("#pb-ok",raiz);ok.hidden=false;
-      ok.innerHTML='<h2>'+ikb("ok")+'Cadastro recebido</h2><div><p>'+(cli?"Obrigado! Seus dados já estão com o Shylton para o contrato.":"Obrigado! Assim que o Shylton liberar, você verá as tarefas e o calendário na área restrita.")+'</p>'+(Store.modo==="local"?'<p class="nota">Demonstração: o cadastro foi salvo na área restrita deste navegador.</p>':'')+'</div>';window.scrollTo(0,0);
+      ok.innerHTML='<h2>'+ikb("ok")+'Cadastro recebido</h2><div><p>'+(cli?"Obrigado! Seus dados já estão com o Shylton para o contrato.":parc?"Obrigado! Seu cadastro de fornecedor já está com o Shylton.":"Obrigado! Assim que o Shylton liberar, você verá as tarefas e o calendário na área restrita.")+'</p>'+(Store.modo==="local"?'<p class="nota">Demonstração: o cadastro foi salvo na área restrita deste navegador.</p>':'')+'</div>';window.scrollTo(0,0);
     },function(){st.className="status erro";st.textContent="O envio automático ainda não está ligado nesta versão do site. Envie seus dados ao Shylton pelo WhatsApp +55 48 9 9621-0587.";});
   });
 };
@@ -1188,6 +1209,7 @@ Object.assign(SIS,{
   Store:Store,proxNum:proxNum,Sessao:Sessao,ehAdm:ehAdm,preparar:preparar,sincAcesso:sincAcesso,membroLiberado:membroLiberado,
   trata:trata,mostrar:mostrar,esconder:esconder,render:render,
   campo:campo,campos:campos,lerCampos:lerCampos,validar:validar,modal:modal,modalForm:modalForm,confirmar:confirmar,fecharModal:fecharModal,erroGravar:erroGravar,
+  TIPOS_CLI:TIPOS_CLI,ehPJ:ehPJ,CATS_PARC:CATS_PARC,nomeTipoCli:nomeTipoCli,opcoesTipoCli:opcoesTipoCli,
   subir:subir,urlArquivo:urlArquivo,salvarArquivo:salvarArquivo,logoSVG:logoSVG,
   novaProposta:novaProposta,listaAmbientes:listaAmbientes,msgAdm:msgAdm,msgCliente:msgCliente,ligarPedido:ligarPedido
 });
