@@ -312,7 +312,7 @@ function entrarSupa(user){
   Sessao.userId=user.id;Sessao.email=String(user.email||"").toLowerCase();
   Sessao.nome=(user.user_metadata&&user.user_metadata.nome)||"";
   return SB.rpc("meu_papel").then(function(r){
-    var papel=r&&!r.error&&(r.data==="adm"||r.data==="colab")?r.data:null;
+    var papel=r&&!r.error&&(r.data==="adm"||r.data==="colab"||r.data==="cliente")?r.data:null; /* cliente: área do cliente (2026-11-15) */
     Sessao.conta=papel;
     if(papel)entrar(papel);
     return papel;
@@ -362,7 +362,39 @@ function preparar(){
 function entrar(papel,membroId,nome){
   Sessao.papel=papel;Sessao.membroId=membroId||"";if(nome)Sessao.nome=nome;Sessao.previa=false;
   try{sessionStorage.setItem(SS,JSON.stringify({papel:papel,nome:Sessao.nome,membroId:Sessao.membroId,userId:Sessao.userId}));}catch(e){}
-  if(Store.modo==="db")Store.assinar(papel==="adm"?COLS_ADM:COLS_COLAB);
+  if(Store.modo==="db"&&papel!=="cliente")Store.assinar(papel==="adm"?COLS_ADM:COLS_COLAB); /* o cliente não lê o banco: recebe só o dele (areaClienteDb) */
+}
+/* Área do cliente (pedido da Isys, 2026-11-15): no banco, tudo vem da função area_cliente, já filtrado.
+   Os documentos (contrato e proposta) leem do Store: ele recebe só o que veio da função. */
+function areaClienteDb(){
+  return SB.rpc("area_cliente").then(function(r){
+    okSb(r);var d=r.data||null;
+    var m=function(l){var o={};(l||[]).forEach(function(x){if(x&&x.id)o[x.id]=x.dados||{};});return o;};
+    Store.dados={clientes:{},producoes:d?m(d.producoes):{},contratos:d?m(d.contratos):{},propostas:d?m(d.propostas):{},config:{geral:{contratado:(d&&d.contratado)||{}}}};
+    if(d&&d.clienteId&&d.cliente)Store.dados.clientes[d.clienteId]=d.cliente;
+    return d;
+  });
+}
+/* Cliente liberado em Clientes › Área do cliente. No banco: tabela membros, papel 'cliente', ligado ao cadastro.
+   Nunca mexe em e-mail da equipe nem tira o acesso de outro cliente. */
+function clienteLiberado(c){return !!(c&&c.acessoArea==="sim"&&String(c.email||"").trim());}
+function sincCliente(id,antes,depois){
+  var ea=String(antes&&antes.email||"").trim().toLowerCase(),ed=String(depois&&depois.email||"").trim().toLowerCase(),lib=clienteLiberado(depois);
+  if(!(Sessao.supa&&SB)){
+    if(lib&&Store.list("equipe").some(function(x){return String(x.email||"").trim().toLowerCase()===ed;}))return Promise.reject({code:"email_equipe"});
+    if(lib&&Store.list("clientes").some(function(x){return x.id!==id&&clienteLiberado(x)&&String(x.email).trim().toLowerCase()===ed;}))return Promise.reject({code:"email_outro_cliente"});
+    return Promise.resolve();
+  }
+  var p=Promise.resolve();
+  if(ea&&ea!==ed)p=p.then(function(){return SB.from("membros").delete().eq("email",ea).eq("papel","cliente").eq("cliente_id",id).then(okSb);});
+  if(!ed)return p;
+  if(!lib)return p.then(function(){return SB.from("membros").update({ativo:false}).eq("email",ed).eq("papel","cliente").eq("cliente_id",id).then(okSb);});
+  return p.then(function(){return SB.from("membros").select("papel,cliente_id,ativo").eq("email",ed).maybeSingle();}).then(function(r){
+    okSb(r);var x=r.data;
+    if(x&&x.papel!=="cliente")throw {code:"email_equipe"};
+    if(x&&x.cliente_id&&x.cliente_id!==id&&x.ativo!==false)throw {code:"email_outro_cliente"};
+    return SB.from("membros").upsert({email:ed,papel:"cliente",cliente_id:id,ativo:true}).then(okSb);
+  });
 }
 function sair(){
   if(Sessao.supa&&SB){SB.auth.signOut();Sessao.conta=null;Sessao.userId="";Sessao.email="";Sessao.nome="";Sessao.recuperar=false;}
@@ -391,15 +423,28 @@ function liberadoDb(email){
     .then(function(s){return s.exists?((s.data()||{}).papel||"colab"):null;},function(){return null;});
 }
 function sincAcesso(antes,depois){
+  /* Cliente nunca vira equipe (pedido da Isys, 2026-11-15): e-mail com área do cliente liberada não é aceito na Equipe,
+     e a Equipe não apaga nem desliga o acesso de cliente. O banco confere de novo (gatilho cliente_nao_vira_equipe). */
+  /* Colaborador também nunca vira administrador (2026-11-15): pela área restrita só se mantém quem já é adm;
+     administrador novo só direto no banco (gatilho colab_nao_vira_adm confere de novo). */
+  var lib=membroLiberado(depois),eDep=String(depois&&depois.email||"").trim().toLowerCase();
+  var querAdm=lib&&depois.acesso==="adm",jaAdm=!!(antes&&antes.acesso==="adm"&&String(antes.email||"").trim().toLowerCase()===eDep);
+  if(querAdm&&!jaAdm)return Promise.reject({code:"adm_so_banco"});
   if(Sessao.supa&&SB){
     /* Equipe → tabela membros. Nunca mexe no acesso de quem está logado, para o adm não se trancar fora */
-    var ea=String(antes&&antes.email||"").trim().toLowerCase(),ed=String(depois&&depois.email||"").trim().toLowerCase(),p=[];
-    if(ea&&ea!==ed&&ea!==Sessao.email)p.push(SB.from("membros").delete().eq("email",ea).then(okSb));
-    if(ed&&ed!==Sessao.email)p.push(membroLiberado(depois)
-      ?SB.from("membros").upsert({email:ed,papel:depois.acesso==="adm"?"adm":"colab",ativo:true}).then(okSb)
-      :SB.from("membros").update({ativo:false}).eq("email",ed).then(okSb));
-    return Promise.all(p);
+    var ea=String(antes&&antes.email||"").trim().toLowerCase(),ed=eDep,p=Promise.resolve();
+    if(ea&&ea!==ed&&ea!==Sessao.email)p=p.then(function(){return SB.from("membros").delete().eq("email",ea).neq("papel","cliente").then(okSb);});
+    if(!ed||ed===Sessao.email)return p;
+    if(!lib)return p.then(function(){return SB.from("membros").update({ativo:false}).eq("email",ed).neq("papel","cliente").then(okSb);});
+    return p.then(function(){return SB.from("membros").select("papel,ativo").eq("email",ed).maybeSingle();}).then(function(r){
+      okSb(r);if(r.data&&r.data.papel==="cliente"&&r.data.ativo)throw {code:"email_cliente"};
+      var dbAdm=!!(r.data&&r.data.papel==="adm");
+      if(querAdm&&!dbAdm)throw {code:"adm_so_banco"};
+      /* adm criado no banco com a ficha dizendo "colaborador": editar a ficha não rebaixa; só rebaixa quem escolheu Colaborador numa ficha de adm */
+      return SB.from("membros").upsert({email:ed,papel:querAdm||(dbAdm&&!jaAdm)?"adm":"colab",ativo:true}).then(okSb);
+    });
   }
+  if(lib&&Store.list("clientes").some(function(c){return clienteLiberado(c)&&String(c.email).trim().toLowerCase()===eDep;}))return Promise.reject({code:"email_cliente"});
   if(Store.modo!=="db")return Promise.resolve();
   var col=Store.db.collection("liberados"),ea=antes&&antes.email||"",ed=depois&&depois.email||"";
   return Promise.all([ea?hashEmail(ea):null,ed?hashEmail(ed):null]).then(function(h){
@@ -429,7 +474,8 @@ function verificar(email,senha,cred){
   return hashSenha(senha,c.sal).then(function(h){
     if(h!==c.hash)throw "E-mail ou senha incorretos.";
     if(c.id==="adm")return {papel:"adm",nome:"Shylton Mavie"};
-    var m=Store.get("equipe",c.id);
+    var m=Store.get("equipe",c.id),cl=!m&&Store.get("clientes",c.id);
+    if(cl){if(!clienteLiberado(cl))throw "Seu acesso não foi liberado. Fale com o Shylton.";return {papel:"cliente",membroId:c.id,nome:cl.nome};}
     if(!membroLiberado(m))throw "Seu acesso não foi liberado. Fale com o Shylton.";
     return {papel:m.acesso==="adm"?"adm":"colab",membroId:c.id,nome:m.nome};
   });
@@ -452,9 +498,10 @@ function criarAcesso(email,senha){
   if(!Store.get("acessos","adm")){id="adm";ret={papel:"adm",nome:"Shylton Mavie"};}
   else{
     var m=Store.list("equipe").filter(function(x){return membroLiberado(x)&&String(x.email||"").trim().toLowerCase()===email;})[0];
-    if(!m)return Promise.reject("Este e-mail não foi liberado. Peça ao Shylton para marcar você como membro na aba Equipe.");
-    if(Store.get("acessos",m.id))return Promise.reject("Este e-mail já tem senha. Use Entrar.");
-    id=m.id;ret={papel:m.acesso==="adm"?"adm":"colab",membroId:m.id,nome:m.nome};
+    var cl=!m&&Store.list("clientes").filter(function(x){return clienteLiberado(x)&&String(x.email).trim().toLowerCase()===email;})[0];
+    if(!m&&!cl)return Promise.reject("Este e-mail não foi liberado. Peça ao Shylton para liberar seu acesso.");
+    if(Store.get("acessos",(m||cl).id))return Promise.reject("Este e-mail já tem senha. Use Entrar.");
+    id=(m||cl).id;ret=m?{papel:m.acesso==="adm"?"adm":"colab",membroId:m.id,nome:m.nome}:{papel:"cliente",membroId:cl.id,nome:cl.nome};
   }
   return hashSenha(senha,sal).then(function(h){return Store.salvar("acessos",id,{email:email,sal:sal,hash:h});}).then(function(){return ret;});
 }
@@ -504,11 +551,13 @@ function render(){
   if(RX_ORC.test(h)){vista=null;orcamentoPub(raiz,h);return;}
   var ps=h.split("/"),nome=ps[1]||"",id=ps.slice(2).join("/");
   if(!Sessao.papel){telaEntrada(raiz);return;}
-  var colab=!ehAdm();
+  var cli=Sessao.papel==="cliente",colab=!ehAdm();
+  /* Cliente: só a área dele (#adm/minhas e #adm/minhas/<produção>); equipe não abre a área do cliente */
+  if(cli?nome!=="minhas":nome==="minhas"){location.replace(cli?"#adm/minhas":"#adm");return;}
   if(nome==="painel"){location.replace("#adm/inicio");return;}
   if(!nome)nome=colab?"tarefas":"inicio";
   var raizMod=PAI[nome]||nome;
-  if(colab&&DO_COLAB.indexOf(raizMod)<0){location.replace("#adm/tarefas");return;}
+  if(!cli&&colab&&DO_COLAB.indexOf(raizMod)<0){location.replace("#adm/tarefas");return;}
   var mod=SIS.mod[nome];
   if(!mod){location.replace("#adm");return;}
   raiz.innerHTML=cascaHTML(raizMod);
@@ -571,8 +620,8 @@ function sbItem(tag,attrs,icone,texto){return '<'+tag+' class="sb__item" '+attrs
 /* Logo da barra: o símbolo fica sempre visível; o nome aparece quando a barra abre */
 function logoSB(){return '<svg class="logo sb__simb" viewBox="0 0 96 148" aria-hidden="true" focusable="false"><use href="#g-simb-v" fill="currentColor"/></svg><span class="sb__marca">Shylton Mavie</span>';}
 function cascaHTML(ativo){
-  var colab=!ehAdm(),itens=NAV.filter(function(n){return !colab||DO_COLAB.indexOf(n[0])>=0;});
-  var papel=colab?"Colaborador":"Administrador",nome=Sessao.nome||papel;
+  var cli=Sessao.papel==="cliente",colab=!ehAdm(),itens=cli?[["minhas","Suas produções","producoes"]]:NAV.filter(function(n){return !colab||DO_COLAB.indexOf(n[0])>=0;});
+  var papel=cli?"Cliente":colab?"Colaborador":"Administrador",nome=Sessao.nome||papel;
   var ini=nome.split(/\s+/).filter(Boolean).slice(0,2).map(function(p){return p.charAt(0);}).join("").toUpperCase();
   var pe=['<div class="sb__item sb__quem"><span class="sb__ini" aria-hidden="true">'+esc(ini)+'</span><span class="sb__txt">'+esc(nome)+'<small>'+papel+'</small></span></div>'];
   if(Sessao.papel==="adm")pe.push(sbItem("button",'type="button" data-previa',"previa",Sessao.previa?"Ver como administrador":"Ver como colaborador"));
@@ -583,7 +632,7 @@ function cascaHTML(ativo){
   return '<header class="sis-topo-m"><button type="button" class="menu-btn" data-sb-abrir aria-expanded="false" aria-controls="sis-sb" aria-label="Abrir menu">'+ikb("menu")+'</button><a href="#adm" class="sis-topo-m__logo barra__logo" aria-label="Área restrita, início">'+logoSVG()+'</a></header>'+
     '<aside class="sb" id="sis-sb" aria-label="Menu da área restrita">'+
       '<div class="sb__topo"><a href="#adm" class="sb__logo" aria-label="Área restrita, início">'+logoSB()+'</a><button type="button" class="sb__fechar" data-sb-fechar>'+ikb("fechar")+'Fechar</button></div>'+
-      '<nav class="sb__nav" aria-label="Área restrita">'+itens.map(function(n){return sbItem("a",'href="#adm/'+n[0]+'"'+(n[0]===ativo?' aria-current="page"':''),n[0],n[1]);}).join("")+'</nav>'+
+      '<nav class="sb__nav" aria-label="Área restrita">'+itens.map(function(n){return sbItem("a",'href="#adm/'+n[0]+'"'+(n[0]===ativo?' aria-current="page"':''),n[2]||n[0],n[1]);}).join("")+'</nav>'+
       '<div class="sb__pe">'+pe.join("")+'</div>'+
     '</aside><div class="sb-veu" data-sb-fechar hidden></div>'+
     '<div class="sis-cont">'+modo+'<main class="sis-main" id="sis-main"></main></div>';
@@ -629,9 +678,10 @@ function msgErroSupa(e){
   if(c==="user_already_exists")return "Este e-mail já tem cadastro. Use Entrar ou Esqueci minha senha.";
   if(c==="same_password")return "A nova senha precisa ser diferente da anterior.";
   /* O banco recusa conta de e-mail que o adm não liberou na aba Equipe (gatilho so_liberados) */
-  if(/database error saving new user|acesso_nao_liberado/i.test(m))return "Este e-mail não foi liberado. Só cria acesso quem o Shylton autorizar na aba Equipe.";
+  if(/database error saving new user|acesso_nao_liberado/i.test(m))return "Este e-mail não foi liberado. Só cria acesso quem o Shylton autorizar.";
   return "Não foi possível concluir agora. Tente de novo.";
 }
+function destino(papel){return papel==="adm"?"#adm/inicio":papel==="cliente"?"#adm/minhas":"#adm/tarefas";}
 function telaSupa(raiz,modo){
   vista=null;
   var topo='<div class="entrada"><a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, voltar ao site">'+logoSVG()+'</a><h1>Área restrita</h1>';
@@ -641,10 +691,10 @@ function telaSupa(raiz,modo){
   modo=modo||"entrar";
   var aviso=Sessao.aviso?'<p class="status erro">'+esc(Sessao.aviso)+'</p>':"";Sessao.aviso="";
   if(modo==="sem"){
-    raiz.innerHTML=topo+'<p>Você entrou como <strong>'+esc(Sessao.email)+'</strong>, mas esse e-mail ainda não foi liberado. Peça ao Shylton para liberar seu acesso na aba Equipe.</p><div class="acoes"><button type="button" class="btn btn--linha" data-sair>'+ikb("sair")+'Sair</button></div>'+fim;
+    raiz.innerHTML=topo+'<p>Você entrou como <strong>'+esc(Sessao.email)+'</strong>, mas esse e-mail ainda não foi liberado. Peça ao Shylton para liberar seu acesso.</p><div class="acoes"><button type="button" class="btn btn--linha" data-sair>'+ikb("sair")+'Sair</button></div>'+fim;
     $("[data-sair]",raiz).addEventListener("click",sair);return;
   }
-  var intro={entrar:"Entre com seu e-mail e senha. Acesso só para o administrador e os colaboradores liberados.",
+  var intro={entrar:"Entre com seu e-mail e senha. Acesso para a equipe e os clientes liberados pelo Shylton.",
     criar:"Primeiro acesso: use o e-mail liberado pelo Shylton e crie sua senha. Enviamos um link de confirmação para esse e-mail.",
     esqueci:"Digite seu e-mail. Enviamos um link para você criar uma nova senha.",
     nova:"Crie sua nova senha."}[modo];
@@ -668,7 +718,7 @@ function telaSupa(raiz,modo){
     if(campo){campo.setAttribute("aria-invalid","true");campo.focus();}
   }
   function pronto(msg){f.innerHTML='<p class="status">'+esc(msg)+'</p>';f.setAttribute("tabindex","-1");f.focus();}
-  function seguir(papel){if(!papel){render();return;}location.hash=papel==="adm"?"#adm/inicio":"#adm/tarefas";render();}
+  function seguir(papel){if(!papel){render();return;}location.hash=destino(papel);render();}
   f.addEventListener("submit",function(e){
     e.preventDefault();
     var email=ce?ce.value.trim().toLowerCase():"",senha=cs?cs.value:"",base=location.origin+location.pathname;
@@ -708,11 +758,11 @@ function telaEntrada(raiz,modoPedido){
   (db?credDb():Promise.resolve(null)).then(function(cred){
     var primeiroAdm=!db&&!Store.get("acessos","adm");
     var modo=modoPedido||((db?!cred:primeiroAdm)?"criar":"entrar"),criar=modo==="criar";
-    var intro=!criar?"Entre com seu e-mail e senha. Acesso só para o administrador e os colaboradores liberados."
+    var intro=!criar?"Entre com seu e-mail e senha. Acesso para a equipe e os clientes liberados pelo Shylton."
       :db?(cred?"Crie uma nova senha. A senha anterior deixa de valer.":"Primeiro acesso: crie o e-mail e a senha que você vai usar para entrar como "+(Sessao.conta==="adm"?"administrador.":"colaborador."))
       :primeiroAdm?"Primeiro acesso do administrador: crie o e-mail e a senha de entrada."
-      :"Primeiro acesso de membro: use o e-mail que o Shylton liberou na aba Equipe e crie sua senha.";
-    var troca=!criar?'<button type="button" class="lnk" data-modo="criar">'+(db?ikb("chave")+"Esqueci minha senha":ikb("clientes")+"Primeiro acesso de colaborador")+'</button>'
+      :"Primeiro acesso: use o e-mail que o Shylton liberou e crie sua senha.";
+    var troca=!criar?'<button type="button" class="lnk" data-modo="criar">'+(db?ikb("chave")+"Esqueci minha senha":ikb("clientes")+"Primeiro acesso")+'</button>'
       :((db?cred:!primeiroAdm)?'<button type="button" class="lnk" data-modo="entrar">'+ikb("entrar")+'Já tenho senha</button>':'');
     raiz.innerHTML=topo+'<p>'+intro+'</p>'+
       '<form class="entrada__caixa" id="lg-form" novalidate>'+
@@ -745,7 +795,7 @@ function ligarEntrada(raiz,criar,cred){
     var btn=$("button[type=submit]",f);btn.disabled=true;st.className="status";st.textContent=criar?"Criando sua senha…":"Conferindo…";
     (criar?criarAcesso(email,senha):verificar(email,senha,cred)).then(function(r){
       entrar(r.papel,r.membroId,r.nome);
-      location.hash=r.papel==="adm"?"#adm/inicio":"#adm/tarefas";render();
+      location.hash=destino(r.papel);render();
     },function(msg){btn.disabled=false;cs.value="";if(cs2)cs2.value="";erro(typeof msg==="string"?msg:"Não foi possível entrar. Tente de novo.",typeof msg==="string"&&/e-mail/i.test(msg)&&!/senha/i.test(msg)?ce:cs);});
   });
 }
@@ -1292,6 +1342,7 @@ Object.assign(SIS,{
   waLink:waLink,clone:clone,setPath:setPath,getPath:getPath,debounce:debounce,extenso:extenso,toast:toast,copiar:copiar,usar:usar,
   FINALIDADES:FINALIDADES,FINALIDADE_CAPS:FINALIDADE_CAPS,ST:ST,tag:tag,opcoes:opcoes,PADRAO:PADRAO,cfg:cfg,calcular:calcular,
   Store:Store,proxNum:proxNum,Sessao:Sessao,ehAdm:ehAdm,preparar:preparar,sincAcesso:sincAcesso,membroLiberado:membroLiberado,
+  sincCliente:sincCliente,clienteLiberado:clienteLiberado,areaClienteDb:areaClienteDb,
   trata:trata,mostrar:mostrar,esconder:esconder,render:render,
   campo:campo,campos:campos,lerCampos:lerCampos,validar:validar,modal:modal,modalForm:modalForm,confirmar:confirmar,fecharModal:fecharModal,erroGravar:erroGravar,
   TIPOS_CLI:TIPOS_CLI,ehPJ:ehPJ,CATS_PARC:CATS_PARC,nomeTipoCli:nomeTipoCli,opcoesTipoCli:opcoesTipoCli,

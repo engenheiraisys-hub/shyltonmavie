@@ -28,7 +28,7 @@ var IK={
 };
 function ik(n,cl){return '<svg class="'+(cl||"ik")+'" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+(IK[n]||S.ICO[n]||"")+'</svg>';}
 /* Ícone do título da página: o mesmo do item do menu (telas de detalhe usam o da lista) */
-var ICO_ROTA={proposta:"propostas",contrato:"contratos",producao:"producoes",cliente:"clientes",parceiro:"parceiros",membro:"equipe",revisao:"contratos"};
+var ICO_ROTA={proposta:"propostas",contrato:"contratos",producao:"producoes",cliente:"clientes",parceiro:"parceiros",membro:"equipe",revisao:"contratos",minhas:"producoes"};
 function icoTela(){var r=(location.hash.split("/")[1]||"inicio").split("?")[0];r=ICO_ROTA[r]||r;return S.ICO[r]?ik(r):"";}
 /* Abas em pílula: [valor, rótulo, cor do ponto]; a contagem é preenchida em contarPil */
 function pilulas(lista,ativo,attr,rot){
@@ -539,13 +539,35 @@ S.modalCliente=function(id,aoSalvar){
     (props.map(function(p){return '<a class="lnk" href="#adm/proposta/'+esc(p.id)+'">Proposta '+esc(p.num)+'</a>';}).concat(cons.map(function(x){return '<a class="lnk" href="#adm/contrato/'+esc(x.id)+'">Contrato '+esc(x.num)+'</a>';})).join("")||'<span class="nota">Nenhum ainda.</span>')+'</div></div>':'';
   var fc=id?faltaCli(c):[];
   var antes=id?'<p class="nota" style="margin-bottom:var(--s-16)">'+(fc.length?'<b>Falta para o contrato:</b> '+esc(fc.join(", "))+'.':'<span class="pos">Dados completos para o contrato.</span>')+'</p>':'';
+  /* Área do cliente (pedido da Isys, 2026-11-15): liberado aqui, o cliente entra com este e-mail e vê as produções dele */
+  if(id&&S.clienteLiberado(c)){var conv=msgAreaCli(c);
+    antes+='<p class="nota t-meet" style="margin-bottom:var(--s-16)">'+ik("clientes")+'<span>Área do cliente liberada para '+esc(c.email)+'. O acesso é em '+esc(linkCadastro("adm"))+': em Primeiro acesso, com este e-mail, cria a senha e vê as próprias produções, com contrato, proposta e orçamentos dos parceiros.'+
+      (c.telefone?' <a class="lnk" target="_blank" rel="noopener" href="'+esc(S.waLink(c.telefone,conv))+'">'+ik("whats")+'Avisar pelo WhatsApp ↗</a>':'')+'</span></p>';}
   /* cliente antigo "Empresa" (PJ): mostra a opção dele até escolherem loja ou escritório */
   var campos=CAMPOS_CLI.map(function(f){return f.k==="tipo"?Object.assign({},f,{o:S.opcoesTipoCli(c.tipo)}):f;});
+  campos.splice(campos.map(function(f){return f.k;}).indexOf("instagram")+1,0,{k:"acessoArea",r:"Área do cliente",t:"select",o:[["nao","Sem acesso"],["sim","Liberado: entra com o e-mail acima"]],ajuda:"Mostra só as produções deste cliente, com contrato, proposta e orçamentos dos parceiros. Valores internos (peças, RT, financeiro) não aparecem."});
+  if(!c.acessoArea)c.acessoArea="nao";
+  function falhou(e){
+    var m=e&&e.code==="email_equipe"?"Este e-mail é de alguém da equipe. Use outro e-mail para a área do cliente.":e&&e.code==="email_outro_cliente"?"Este e-mail já dá acesso a outro cliente. Use outro e-mail ou tire o acesso do outro cadastro.":
+      e&&e.code==="sem_email"?"Para liberar a área do cliente, preencha o e-mail: é com ele que o cliente entra.":/cliente_id|membros_papel_check/i.test(String(e&&e.message||""))?"Falta rodar o area-cliente.sql no Supabase para liberar clientes.":"";
+    if(!m)throw e;
+    S.toast(m);
+    var cp=!/\.sql/.test(m)&&$('[data-k="email"]',document.querySelector("dialog.modal")||document);if(cp){cp.setAttribute("aria-invalid","true");cp.focus();}
+    return false;
+  }
   S.modalForm({sobre:"Cadastro",ico:"clientes",titulo:id?c.nome:"Novo cliente",campos:campos,dados:c,antes:antes,depois:depois,aoAbrir:S.ligarTipoCliente,salvarRot:id?"Salvar":"+ Adicionar",
-    aoSalvar:function(v){var corpo=Object.assign({},c,v);if(!id)corpo.criadoEm=S.agoraISO();delete corpo.id;return St.salvar("clientes",id||null,corpo).then(function(nid){S.toast("Cliente salvo.");if(aoSalvar)aoSalvar(nid);});},
-    aoExcluir:id?function(){return St.excluir("clientes",id);}:null});
-  var d=document.querySelector("dialog.modal");if(d)$$(".modal__corpo a",d).forEach(function(a){a.addEventListener("click",S.fecharModal);});
+    aoSalvar:function(v){var corpo=Object.assign({},c,v),nid=id||S.uid();if(!id)corpo.criadoEm=S.agoraISO();delete corpo.id;
+      if(corpo.acessoArea==="sim"&&!String(corpo.email||"").trim())return falhou({code:"sem_email"});
+      var liberou=S.clienteLiberado(corpo)&&!(id&&S.clienteLiberado(c)&&String(c.email).trim().toLowerCase()===String(corpo.email).trim().toLowerCase());
+      return S.sincCliente(nid,id?c:null,corpo).then(function(){return St.salvar("clientes",nid,corpo);}).then(function(){
+        S.toast(liberou?"Cliente salvo, com a área do cliente liberada. Abra de novo para avisar pelo WhatsApp.":"Cliente salvo.");if(aoSalvar)aoSalvar(nid);},falhou);},
+    aoExcluir:id?function(){return St.excluir("clientes",id).then(function(){return S.sincCliente(id,c,null);});}:null});
+  var d=document.querySelector("dialog.modal");if(d)$$(".modal__corpo a",d).forEach(function(a){if(!a.target)a.addEventListener("click",S.fecharModal);});
 };
+function msgAreaCli(c){
+  return "Olá, "+String(c.nome||"").split(/\s+/)[0]+"! Liberei seu acesso à área do cliente Shylton Mavie, onde ficam suas produções, o contrato, a proposta e os orçamentos dos parceiros. "+
+    "Entre em "+linkCadastro("adm")+", toque em Primeiro acesso e crie sua senha com o e-mail "+String(c.email||"").trim()+".";
+}
 var fCli={q:"",ord:"cad",tipo:"todos"};
 /* Filtro por tipo (pedido da Isys, 2026-11-15). Tipo desconhecido conta como pessoa física, como no contrato. */
 function tipoFiltro(c){return c.tipo==="PJ"||c.tipo==="loja"||c.tipo==="escritorio"?c.tipo:"PF";}
@@ -569,7 +591,7 @@ M.clientes={render:function(m,id,vista){
     contarPil(m,"data-tipo",function(v){return v==="todos"?todos.length:todos.filter(function(c){return tipoFiltro(c)===v;}).length;});
     var l=todos.filter(function(c){return (fCli.tipo==="todos"||tipoFiltro(c)===fCli.tipo)&&contem(fCli.q,[c.nome,c.cidade,c.email,c.telefone,c.doc]);}).sort(function(a,b){return fCli.ord==="az"?String(a.nome).localeCompare(String(b.nome)):porData(a,b,"criadoEm");});
     $("#sis-lista",m).innerHTML=tabela([
-      {r:"Cliente / tipo",v:function(c){return esc(c.nome)+'<small>'+esc(S.nomeTipoCli(tipoFiltro(c))+(c.email?" · "+c.email:""))+'</small>';}},
+      {r:"Cliente / tipo",v:function(c){return esc(c.nome)+'<small>'+esc(S.nomeTipoCli(tipoFiltro(c))+(c.email?" · "+c.email:"")+(S.clienteLiberado(c)?" · área do cliente liberada":""))+'</small>';}},
       {r:"Propostas e contratos",v:function(c){var p=props.filter(function(x){return x.clienteId===c.id;}).length,k=cons.filter(function(x){return x.clienteId===c.id;}).length;return esc(plural(p,"proposta")+" · "+plural(k,"contrato"));},cl:"sec"},
       {r:"Cidade",v:function(c){return esc([c.cidade,c.uf].filter(Boolean).join("/")||"—");},cl:"sec"},
       {r:"Telefone",v:function(c){return esc(c.telefone||"—");}},
@@ -578,6 +600,102 @@ M.clientes={render:function(m,id,vista){
     ],l,St.list("clientes").length?"Nenhum cliente encontrado.":"Ainda não há clientes. Eles entram pelos pedidos do site, pelo link de cadastro ou em Novo cliente.",function(c){return dadosOk(c)?"#3E6B48":"#B08A3E";});
   };
   if(!carregando($("#sis-lista",m),vista,"clientes"))vista.atualizar();
+}};
+
+/* ================= ÁREA DO CLIENTE =================
+   Pedido da Isys (2026-11-15): o cliente liberado em Clientes entra com o próprio e-mail e vê as produções dele;
+   em cada uma, o contrato, a proposta e os orçamentos dos parceiros anexados. No banco ele não lê nada direto:
+   tudo vem da função area_cliente (supabase/area-cliente.sql), já sem peças, RT, financeiro, equipe e observações.
+   Na demonstração, o mesmo formato é montado aqui com os dados deste navegador. */
+var areaCli={chave:"",dados:undefined,pedindo:null};
+function areaClienteDemo(cid){
+  var cli=cid?St.get("clientes",cid):null;if(!S.clienteLiberado(cli))return null;
+  var so=function(x){var o=S.clone(x);delete o.id;return o;};
+  var prods=St.list("producoes").filter(function(p){return p.clienteId===cid;}).sort(function(a,b){return porData(a,b,"dataInicio");});
+  var cons=St.list("contratos").filter(function(c){return c.clienteId===cid&&prods.some(function(p){return p.contratoId===c.id;});});
+  var props=St.list("propostas").filter(function(p){return cons.some(function(c){return c.propostaId===p.id;});});
+  return {clienteId:cid,cliente:so(cli),
+    producoes:prods.map(function(p){return {id:p.id,dados:{titulo:p.titulo,local:p.local,dataInicio:p.dataInicio,dataFim:p.dataFim,hora:p.hora,status:p.status,contratoId:p.contratoId,clienteId:p.clienteId,
+      parceiros:(p.parceiros||[]).map(function(x){return {nome:nomeParceiro(x.parceiroId)||"Parceiro",papel:x.papel||"",orcamento:x.orcamento||null,recebidos:orcRecebidos(x.chave)};})}};}),
+    contratos:cons.map(function(c){return {id:c.id,dados:so(c)};}),propostas:props.map(function(p){return {id:p.id,dados:so(p)};})};
+}
+function dadosArea(){
+  var ch=(S.Sessao.userId||"")+"|"+(S.Sessao.membroId||"");
+  if(areaCli.chave!==ch)areaCli={chave:ch,dados:undefined,pedindo:null};
+  if(St.modo!=="db")return Promise.resolve(areaClienteDemo(S.Sessao.membroId));
+  if(areaCli.dados!==undefined)return Promise.resolve(areaCli.dados);
+  if(!areaCli.pedindo)areaCli.pedindo=S.areaClienteDb().then(function(d){areaCli.dados=d;areaCli.pedindo=null;return d;},function(e){areaCli.pedindo=null;throw e;});
+  return areaCli.pedindo;
+}
+function periodoProd(p){
+  if(!p.dataInicio)return "Data a combinar";
+  var f=p.dataFim&&p.dataFim!==p.dataInicio?p.dataFim:"";
+  return (f?S.dataBR(p.dataInicio).slice(0,5)+" a "+S.dataBR(f):S.dataBR(p.dataInicio))+(p.hora?" · "+p.hora:"");
+}
+function imprimirContrato(ct){
+  var box=document.createElement("div");box.className="ct-print";box.innerHTML=S.contratoHTML(ct);document.body.appendChild(box);
+  document.body.classList.add("imprimindo-ct");
+  function fim(){document.body.classList.remove("imprimindo-ct");box.remove();window.removeEventListener("afterprint",fim);}
+  window.addEventListener("afterprint",fim);
+  setTimeout(function(){try{window.print();}catch(e){S.toast("A impressão não está disponível aqui. Abra o contrato em outro navegador.");}setTimeout(fim,1500);},120);
+}
+M.minhas={render:function(m,id,vista){
+  var verCt=false,dados=null;
+  m.innerHTML='<p class="vazio-sis" style="margin-top:var(--s-32)">Carregando…</p>';
+  function achar(l,i){return i?(l||[]).filter(function(x){return x.id===i;}).map(function(x){return Object.assign({id:x.id},x.dados);})[0]||null:null;}
+  function arq(a,extra){
+    var u=a?esc(S.urlArquivo(a)):"",n=esc(a&&a.nome||"orçamento");
+    return '<span class="orc__arq">'+ik("propostas")+'<span>'+(u?'<a class="lnk" href="'+u+'" target="_blank" rel="noopener">'+n+' ↗</a>':n+(St.modo!=="db"?' <small class="nota">· na demonstração só o nome; no site o arquivo abre aqui</small>':a&&a.nota?' <small class="nota">· '+esc(a.nota)+'</small>':''))+
+      (extra?' <small class="nota">· '+extra+'</small>':'')+'</span></span>';
+  }
+  function desenhar(){
+    var d=dados;
+    if(!d){m.innerHTML=cab("Área do cliente","",'',null)+'<p class="vazio-sis">Seu acesso ainda não está ligado ao seu cadastro de cliente. Fale com o Shylton.</p>';return;}
+    var prods=(d.producoes||[]).map(function(x){return Object.assign({id:x.id},x.dados);});
+    if(!id){
+      var nome=String((d.cliente&&d.cliente.nome)||S.Sessao.nome||"").split(/\s+/)[0];
+      m.innerHTML=cab("Suas produções",(nome?"Olá, "+esc(nome)+". ":"")+"Toque numa produção para ver o contrato, a proposta e os orçamentos dos parceiros.","",null)+
+        '<div id="sis-lista">'+tabela([
+          {r:"Produção",v:function(p){return esc(p.titulo||"Produção")+(p.local?'<small>'+esc(p.local)+'</small>':'');}},
+          {r:"Data",v:function(p){return esc(periodoProd(p));},cl:"sec"},
+          {r:"Situação",v:function(p){return S.tag("producao",p.status);}}
+        ],prods,"Ainda não há produções por aqui. Quando o contrato for assinado, a produção aparece nesta tela.",function(p){return corSt("producao",p.status);})+'</div>';
+      aoClicarLinha($("#sis-lista",m),function(pid){location.hash="#adm/minhas/"+encodeURIComponent(pid);});
+      return;
+    }
+    var p=prods.filter(function(x){return x.id===id;})[0];
+    if(!p){m.innerHTML=cab("Produção não encontrada","",'',["#adm/minhas","Suas produções"])+'<p class="vazio-sis">Esta produção não está na sua área.</p>';return;}
+    var ct=achar(d.contratos,p.contratoId),pr=ct?achar(d.propostas,ct.propostaId):null;
+    var parcs=(p.parceiros||[]).filter(function(x){return x.orcamento||(x.recebidos||[]).length;});
+    m.innerHTML=cab(p.titulo||"Produção",esc(periodoProd(p))+(p.local?" · "+esc(p.local):""),S.tag("producao",p.status),["#adm/minhas","Suas produções"])+
+      '<section class="sis-sec cli-sec"><h2>'+ik("contratos")+'Contrato</h2><div class="cli-sec__corpo">'+(ct?
+        '<p>Contrato <b>'+esc(ct.num||"")+'</b> '+S.tag("contrato",stCon(ct))+'</p>'+
+        '<div class="acoes"><button type="button" class="btn btn--escuro" data-ver-ct aria-expanded="'+verCt+'" aria-controls="cli-folha">'+ik(verCt?"acima":"abaixo")+(verCt?'Fechar o contrato':'Ver o contrato')+'</button>'+
+          '<button type="button" class="btn btn--linha" data-ct-pdf>'+ik("baixar")+'Salvar em PDF</button></div></div>'+ /* sem .docx para o cliente (pedido da Isys, 2026-11-15) */
+        '<div class="cli-folha" id="cli-folha"'+(verCt?'':' hidden')+'>'+(verCt?S.contratoHTML(ct):'')+'</div>'
+        :'<p class="nota">O contrato desta produção ainda não está aqui. Fale com o Shylton.</p></div>')+'</section>'+
+      '<section class="sis-sec cli-sec"><h2>'+ik("propostas")+'Proposta</h2><div class="cli-sec__corpo">'+(pr?
+        '<p>Proposta <b>'+esc(pr.num||"")+'</b>'+(num(pr.valor)?' · '+esc(brl(pr.valor)):'')+(pr.data?' · '+esc(S.dataBR(String(pr.data).slice(0,10))):'')+'</p>'+
+        '<div class="acoes"><button type="button" class="btn btn--linha" data-prop-pdf>'+ik("baixar")+'Baixar a proposta em PDF</button></div>'
+        :'<p class="nota">A proposta desta produção ainda não está aqui.</p>')+'</div></section>'+
+      '<section class="sis-sec cli-sec"><h2>'+ik("parceiros")+'Orçamentos dos parceiros</h2><div class="cli-sec__corpo">'+(parcs.length?parcs.map(function(x){
+        return '<div class="cli-orc"><b>'+esc(x.nome||"Parceiro")+'</b>'+(x.papel?'<small>'+esc(x.papel)+'</small>':'')+'<div class="cli-orc__arqs">'+
+          (x.orcamento?arq(x.orcamento,""):"")+(x.recebidos||[]).map(function(r){return arq(r.arquivo,"enviado em "+esc(S.dataBR(String(r.enviadoEm||"").slice(0,10)))+(r.obs?" · "+esc(r.obs):""));}).join("")+'</div></div>';
+      }).join(""):'<p class="nota">Nenhum orçamento de parceiro anexado ainda.</p>')+'</div></section>';
+  }
+  m.addEventListener("click",function(e){
+    var d=dados,p=d&&id?(d.producoes||[]).filter(function(x){return x.id===id;})[0]:null,ct=p?achar(d.contratos,p.dados.contratoId):null;
+    if(e.target.closest("[data-ver-ct]")){verCt=!verCt;desenhar();var b=$("[data-ver-ct]",m);if(b)b.focus();return;}
+    if(e.target.closest("[data-ct-pdf]")&&ct){imprimirContrato(ct);return;}
+    if(e.target.closest("[data-prop-pdf]")&&ct){var pr=achar(d.propostas,ct.propostaId);if(pr)S.propostaPDF(pr);}
+  });
+  var pronto=false; /* links dos arquivos chegam depois e redesenham a tela (vista.atualizar) */
+  vista.atualizar=function(){if(!pronto)return;if(St.modo!=="db")dados=areaClienteDemo(S.Sessao.membroId);desenhar();};
+  dadosArea().then(function(d){dados=d;pronto=true;desenhar();},function(e){
+    if(window.console)console.error(e);
+    m.innerHTML=cab("Suas produções","",'',null)+'<p class="vazio-sis">Não foi possível carregar suas produções agora. <button type="button" class="lnk" data-recarregar>'+ik("trocar")+'Tentar de novo</button></p>';
+    var b=$("[data-recarregar]",m);if(b)b.addEventListener("click",function(){S.render();});
+  });
 }};
 
 /* ================= PRODUÇÕES ================= */
@@ -1450,25 +1568,37 @@ M.tarefas={render:function(m,id,vista){
 function modalMembro(id){
   var x=id?St.copia("equipe",id):{status:"ativo",membro:"nao",acesso:"colaborador"};
   if(!x.membro)x.membro="nao";
+  /* colaborador não vira administrador: só quem já é adm mantém a opção */
+  var eraAdm=!!id&&x.acesso==="adm";
+  if(!eraAdm)x.acesso="colaborador";
   var antes=id?St.copia("equipe",id):null;
   function gravar(corpo){
     if(corpo.membro==="sim"&&!corpo.email)return Promise.reject({code:"sem_email"});
-    return St.salvar("equipe",id||null,corpo).then(function(){return S.sincAcesso(antes,corpo);});
+    /* acesso primeiro: e-mail de cliente com área liberada é recusado antes de gravar (cliente nunca vira equipe) */
+    return S.sincAcesso(antes,corpo).then(function(){return St.salvar("equipe",id||null,corpo);});
   }
-  function falhou(e){if(e&&e.code==="sem_email")S.toast("Para ser membro, preencha o e-mail: é com ele que a pessoa entra.");else S.erroGravar(e);}
+  function ehCliente(e){return !!e&&(e.code==="email_cliente"||/email_de_cliente/.test(String(e.message||"")));}
+  function ehAdm(e){return !!e&&(e.code==="adm_so_banco"||/adm_so_pelo_banco/.test(String(e.message||"")));}
+  function falhou(e){
+    if(e&&e.code==="sem_email")S.toast("Para ser membro, preencha o e-mail: é com ele que a pessoa entra.");
+    else if(ehAdm(e))S.toast("Colaborador não vira administrador pela área restrita. Administrador novo só é criado direto no banco de dados.");
+    else if(ehCliente(e))S.toast("Este e-mail é de um cliente com a área do cliente liberada. Cliente não entra na área da equipe: use outro e-mail.");
+    else S.erroGravar(e);
+  }
   var d=S.modalForm({sobre:"Equipe",titulo:id?x.nome:"Novo membro",dados:x,salvarRot:id?"Salvar":"+ Adicionar",
     campos:[{k:"nome",r:"Nome",req:1},{k:"funcao",r:"Função"},{k:"email",r:"E-mail",t:"email",ajuda:"É com este e-mail que o membro entra na área restrita."},{k:"telefone",r:"Telefone / WhatsApp",t:"tel"},{k:"cidade",r:"Cidade"},{k:"pix",r:"Chave PIX"},
       {k:"membro",r:"Membro",t:"select",o:[["nao","Não: sem acesso à área restrita"],["sim","Sim: liberar acesso à área restrita"]]},
-      {k:"acesso",r:"Acesso do membro",t:"select",o:[["colaborador","Colaborador: Produções e Parceiros (só ver), Tarefas e Calendário"],["adm","Administrador: acesso completo"]],ajuda:"Vale só quando Membro é Sim."},
+      {k:"acesso",r:"Acesso do membro",t:"select",o:eraAdm?[["adm","Administrador: acesso completo"],["colaborador","Colaborador: Produções e Parceiros (só ver), Tarefas e Calendário"]]:[["colaborador","Colaborador: Produções e Parceiros (só ver), Tarefas e Calendário"]],
+        ajuda:eraAdm?"Vale só quando Membro é Sim. Se mudar para Colaborador, só volta a ser administrador direto no banco de dados.":"Vale só quando Membro é Sim. Colaborador não vira administrador: administrador novo só é criado direto no banco de dados."},
       {k:"status",r:"Situação",t:"select",o:S.opcoes("equipe"),ajuda:"Bloqueado tira o acesso, mesmo sendo membro."},{k:"obs",r:"Observações",t:"area",full:1}],
     antes:id&&(x.status==="pendente"||x.membro!=="sim")&&x.status!=="bloqueado"?'<div class="item" style="margin-bottom:var(--s-16)"><b>'+(x.status==="pendente"?"Cadastro aguardando liberação":"Sem acesso à área restrita")+'</b><div class="acoes"><button type="button" class="btn btn--escuro" data-liberar>'+ik("ok")+'Tornar membro e liberar acesso</button></div></div>':'',
-    aoSalvar:function(v){var corpo=Object.assign({},x,v);delete corpo.id;if(!id)corpo.criadoEm=S.agoraISO();return gravar(corpo).then(function(){S.toast(S.membroLiberado(corpo)?"Membro salvo, com acesso liberado.":"Membro salvo, sem acesso.");},function(e){if(e&&e.code==="sem_email"){falhou(e);var c=$('[data-k="email"]',d);if(c){c.setAttribute("aria-invalid","true");c.focus();}return false;}throw e;});},
+    aoSalvar:function(v){var corpo=Object.assign({},x,v);delete corpo.id;if(!id)corpo.criadoEm=S.agoraISO();return gravar(corpo).then(function(){S.toast(S.membroLiberado(corpo)?"Membro salvo, com acesso liberado.":"Membro salvo, sem acesso.");},function(e){if(e&&(e.code==="sem_email"||ehCliente(e)||ehAdm(e))){falhou(e);var c=$('[data-k="email"]',d);if(c){c.setAttribute("aria-invalid","true");c.focus();}return false;}throw e;});},
     aoExcluir:id?function(){return St.excluir("equipe",id).then(function(){return S.sincAcesso(antes,null);});}:null});
   var lb=$("[data-liberar]",d);
   if(lb)lb.addEventListener("click",function(){var c=Object.assign({},x,{status:"ativo",membro:"sim"});delete c.id;gravar(c).then(function(){S.fecharModal();S.toast(x.nome+" agora é membro, com acesso liberado.");},falhou);});
 }
 M.equipe={render:function(m,id,vista){
-  m.innerHTML=cab("Equipe","Só quem é membro entra na área restrita. Marque <b>Membro: Sim</b> e escolha o acesso: colaborador vê Tarefas e Calendário, e consulta Produções e Parceiros (sem valores nem RT). Toque num membro para editar os dados.",'<button type="button" class="btn btn--escuro" data-novo>'+ik("mais")+'Novo membro</button>')+
+  m.innerHTML=cab("Equipe","Só quem é membro entra na área restrita. Marque <b>Membro: Sim</b> e o membro entra como colaborador: vê Tarefas e Calendário, e consulta Produções e Parceiros (sem valores nem RT). Colaborador não vira administrador por aqui. Toque num membro para editar os dados.",'<button type="button" class="btn btn--escuro" data-novo>'+ik("mais")+'Novo membro</button>')+
     '<div id="sis-lista"></div>';
   ligarCopiarLink(m);
   $("[data-novo]",m).addEventListener("click",function(){modalMembro(null);});
