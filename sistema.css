@@ -236,6 +236,10 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .f small{font-weight:400;text-transform:none;letter-spacing:0;font-size:var(--t-leg);color:var(--tinta-2)}
 .chk{display:flex;gap:var(--s-8);align-items:center;font-size:var(--t-ui);color:var(--tinta);min-width:0;min-height:28px}
 .chk input{accent-color:var(--tinta);width:16px;height:16px;flex-shrink:0}
+/* Várias opções marcáveis num campo (t:"multi"), ex.: responsáveis da tarefa */
+.f-multi__op{display:flex;flex-wrap:wrap;gap:var(--s-8) var(--s-24)}
+.f-multi .chk{font-size:var(--t-ui);font-weight:400;letter-spacing:0;text-transform:none;color:var(--tinta)}
+.f .f-multi__op input{width:16px;height:16px;min-height:0;padding:0;border:0}
 .port-nota{margin:var(--s-12) 0}
 .port-sel{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-8) var(--s-16)}
 .port-sel small{margin-left:4px}
@@ -311,7 +315,13 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .kcard{position:relative;margin-top:var(--s-12);padding:var(--s-12) var(--s-16);background:var(--branco);border:1px solid var(--borda-card);border-left:3px solid var(--c);border-radius:var(--r-ctl);box-shadow:var(--sombra-card);cursor:grab;transition:border-color var(--rapido),box-shadow var(--rapido)}
 .kcard:hover{border-color:var(--pedra) var(--pedra) var(--pedra) var(--c)}
 .kcard.arrastando{opacity:.45}
+.kcard{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.kcard--fantasma{position:fixed;top:0;left:0;z-index:1000;margin:0;pointer-events:none;cursor:grabbing;opacity:.95;border-color:var(--pedra) var(--pedra) var(--pedra) var(--c)}
+.k-marca{height:3px;margin-top:var(--s-12);background:var(--c);border-radius:2px}
 .kcard .av{position:absolute;top:var(--s-12);right:var(--s-12)}
+.kcard__avs{position:absolute;top:var(--s-12);right:var(--s-12);display:flex;flex-direction:row-reverse} /* vários responsáveis: bolinhas sobrepostas */
+.kcard__avs .av{position:static;margin-left:-6px;box-shadow:0 0 0 2px var(--branco)}
+.kcard:has(.kcard__avs .av + .av) h3{padding-right:72px}
 .kcard h3{padding-right:var(--s-32);font-size:var(--t-corpo);font-weight:600;line-height:1.3}
 .kcard p{font-size:var(--t-leg);color:var(--tinta-2);margin-top:var(--s-4)}
 .kcard__resp{font-size:var(--t-leg)}

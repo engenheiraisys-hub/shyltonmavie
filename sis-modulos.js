@@ -1062,7 +1062,8 @@ function evTarefa(t){
   return {id:"tar:"+t.id,titulo:t.titulo||"Tarefa",tipo:"tarefa",data:ini,dataFim:fim,hora:t.hora||"",horaFim:t.horaFim||"",local:"",desc:[r?"Responsável: "+r:"",t.desc||""].filter(Boolean).join(". "),tarefaId:t.id};
 }
 /* Toda tarefa com data (início ou prazo) aparece no calendário, sem precisar marcar (pedido da Isys, 2026-11-15) */
-function agendaTudo(){return St.list("agenda").filter(function(e){return !e.gApagar;}).concat(St.list("tarefas").filter(function(t){return t.inicio||t.prazo;}).map(evTarefa));}
+/* Colaborador: só compromissos e tarefas de que é responsável; produções aparecem para todos (pedido da Isys, 2026-11-16) */
+function agendaTudo(){return St.list("agenda").filter(function(e){return !e.gApagar&&(e.tipo==="producao"||e.auto||podeVer(e));}).concat(St.list("tarefas").filter(function(t){return (t.inicio||t.prazo)&&podeVer(t);}).map(evTarefa));}
 function eventosDoDia(dia){return agendaTudo().filter(function(e){return e.data&&e.data<=dia&&(e.dataFim||e.data)>=dia;}).sort(function(a,b){return String(a.hora||"").localeCompare(String(b.hora||""));});}
 function proximosEventos(n){var h=S.hoje();return agendaTudo().filter(function(e){return (e.dataFim||e.data)>=h;}).sort(function(a,b){return (String(a.data)+(a.hora||"")).localeCompare(String(b.data)+(b.hora||""));}).slice(0,n);}
 /* Compromisso em linha: data (e hora) | título (e local) | tipo, nas mesmas colunas em todas as linhas */
@@ -1081,8 +1082,10 @@ function verEvento(id){
   var e=St.copia("agenda",id);if(!e)return;
   var t=TIPOS_AG[e.tipo]||TIPOS_AG.outro,adm=S.ehAdm();
   if(adm&&!e.auto){modalEvento(id);return;}
+  var link=linkMeet({hangoutLink:e.meetLink});
   S.modal({sobre:t[0],ico:"calendario",titulo:e.titulo,semFoco:1,
-    corpo:'<dl class="itens">'+[["Data",S.dataBR(e.data)+(e.dataFim&&e.dataFim!==e.data?" a "+S.dataBR(e.dataFim):"")],["Horário",(e.hora||"")+(e.horaFim?" às "+e.horaFim:"")],["Responsável",e.respNome],["Local",e.local],["Detalhes",e.desc]].filter(function(x){return x[1];}).map(function(x){return '<div class="item"><b>'+esc(x[0])+'</b><span style="grid-column:1/-1;color:var(--tinta)">'+esc(x[1])+'</span></div>';}).join("")+'</dl>'+
+    corpo:(link?'<p class="nota t-meet" style="margin-bottom:var(--s-12)">'+ik("video")+'<a class="lnk" target="_blank" rel="noopener" href="'+esc(link)+'">Entrar na reunião (Google Meet) ↗</a></p>':'')+
+      '<dl class="itens">'+[["Data",S.dataBR(e.data)+(e.dataFim&&e.dataFim!==e.data?" a "+S.dataBR(e.dataFim):"")],["Horário",(e.hora||"")+(e.horaFim?" às "+e.horaFim:"")],["Responsável",e.respNome],["Local",e.local],["Convidados",e.convidados],["Detalhes",e.desc]].filter(function(x){return x[1];}).map(function(x){return '<div class="item"><b>'+esc(x[0])+'</b><span style="grid-column:1/-1;color:var(--tinta)">'+esc(x[1])+'</span></div>';}).join("")+'</dl>'+
       (e.auto&&adm?'<p class="nota" style="margin-top:var(--s-12)">Criado pela produção. Para mudar datas, edite a produção.</p>':''),
     pe:(e.auto&&e.producaoId?'<a class="lnk esq" href="#adm/producao/'+esc(e.producaoId)+'" data-fechar>'+ik("producoes")+'Abrir produção</a>':'')+
       ((adm&&googleId()&&vaiAgenda(e))?'':'<a class="btn btn--linha" target="_blank" rel="noopener" href="'+esc(gcal(e))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a>')+ /* do Shylton: já vai sozinho, sem cópia solta */
@@ -1091,25 +1094,52 @@ function verEvento(id){
 function modalEvento(id,data){
   var e=id?St.copia("agenda",id):{tipo:"visita",data:data||S.hoje()};
   var gOk=gOkAdm();if(gOk)prepararGoogle().catch(function(){});
+  e.resps=respsDe(e);if(!e.resps.length)e.resps=["adm"]; /* sem responsável = do Shylton */
+  hashesEquipe().catch(function(){});
   /* Compromisso do Shylton vai direto para a agenda dele no Google (pedido da Isys, 2026-11-15); dos outros, link para copiar */
   var depois=gOk?'<p class="nota" style="margin-top:var(--s-16)">'+(e.gEvento?ik("calendario")+' Na agenda do Shylton no Google: mudar ou excluir aqui atualiza lá.':'Compromisso do Shylton vai direto para a agenda dele no Google ao salvar (o Google pode pedir para entrar com a conta dele).')+
       (id&&!vaiAgenda(e)?' <a class="lnk" target="_blank" rel="noopener" href="'+esc(gcal(e))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a>':'')+'</p>':
     id?'<p style="margin-top:var(--s-16)"><a class="lnk" target="_blank" rel="noopener" href="'+esc(gcal(e))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a></p>':'<p class="nota" style="margin-top:var(--s-16)">Depois de salvar, abra o compromisso para mandar ao Google Agenda.</p>';
+  /* Reunião online com o link à mostra e convidados por e-mail, como no Google Agenda (pedido da Isys, 2026-11-16) */
+  var link=linkMeet({hangoutLink:e.meetLink});
+  var cs=[{k:"titulo",r:"Título",req:1,full:1},{k:"tipo",r:"Tipo",t:"select",o:Object.keys(TIPOS_AG).filter(function(k){return k!=="producao";}).map(function(k){return [k,TIPOS_AG[k][0]];})},
+      {k:"resps",r:"Responsáveis",t:"multi",o:opcoesResp(),full:1,ajuda:"Marque um ou mais; o colaborador só vê o compromisso se for responsável. "+(gOk?"Vai para o Google Agenda do Shylton o que for dele e toda reunião online ou com convidados.":"Só o que for do Shylton vai para o Google Agenda dele.")},
+      {k:"data",r:"Data",t:"date",req:1},{k:"dataFim",r:"Até (opcional)",t:"date"},{k:"hora",r:"Início",t:"time"},{k:"horaFim",r:"Fim",t:"time"}];
+  if(gOk){e.linkReuniao=link;
+    cs.push({k:"meet",r:"Reunião online (Google Meet): o link é criado sozinho na agenda do Shylton",t:"check",full:1},
+      {k:"linkReuniao",r:"Link da reunião",ro:1,full:1,ph:e.gMeet?"O link está no evento do Google Agenda":"O link do Meet aparece aqui depois de salvar"},
+      {k:"convidados",r:"Convidados (e-mails)",t:"area",full:1,alt:72,ph:"nome@exemplo.com",ajuda:"Um por linha ou separados por vírgula. O Google manda o convite por e-mail e avisa os convidados se mudar a data ou cancelar."});}
+  cs.push({k:"local",r:"Local",full:1},{k:"desc",r:"Detalhes",t:"area",full:1});
   var d=S.modalForm({sobre:"Calendário",titulo:id?e.titulo:"Novo compromisso",dados:e,salvarRot:id?"Salvar":"+ Adicionar",
-    campos:[{k:"titulo",r:"Título",req:1,full:1},{k:"tipo",r:"Tipo",t:"select",o:Object.keys(TIPOS_AG).filter(function(k){return k!=="producao";}).map(function(k){return [k,TIPOS_AG[k][0]];})},
-      {k:"resp",r:"Responsável",t:"select",o:opcoesResp(),ajuda:"Só o que for do Shylton vai para o Google Agenda dele."},
-      {k:"data",r:"Data",t:"date",req:1},{k:"dataFim",r:"Até (opcional)",t:"date"},{k:"hora",r:"Início",t:"time"},{k:"horaFim",r:"Fim",t:"time"},
-      {k:"local",r:"Local",full:1},{k:"desc",r:"Detalhes",t:"area",full:1}],
+    campos:cs,
     depois:depois,
-    aoSalvar:function(v){if(v.dataFim&&v.dataFim<v.data)v.dataFim=v.data;var corpo=Object.assign({},e,v);delete corpo.id;
-      var mb=timeLista().filter(function(x){return x[0]===corpo.resp;})[0];corpo.respNome=corpo.resp==="adm"?"Shylton":(mb?mb[1]:"");
+    aoSalvar:function(v){if(v.dataFim&&v.dataFim<v.data)v.dataFim=v.data;var corpo=Object.assign({},e,v);delete corpo.id;delete corpo.linkReuniao;
+      var rs=(v.resps||[]).filter(Boolean);
+      if(!rs.length){S.toast("Marque pelo menos um responsável.");return false;}
+      gravarResps(corpo,rs);
+      if(gOk){
+        var ems=listaEmails(v.convidados),ruins=ems.filter(function(x){return !emailOk(x);});
+        if(ruins.length){S.toast("Confira "+(ruins.length===1?"este e-mail":"estes e-mails")+": "+ruins.join(", ")+".");return false;}
+        if(ems.length)corpo.convidados=ems.join(", ");else delete corpo.convidados;
+        if(v.meet)corpo.meet=true;else delete corpo.meet;
+        if(corpo.meet&&!corpo.hora){S.toast("Para a reunião online, informe o horário de início.");return false;}
+      }
       var a=gOk?acaoAgenda(id?e:{},corpo):null;
       if(!a)return St.salvar("agenda",id||null,corpo).then(function(){S.toast("Compromisso salvo.");});
       return tokenGoogle().then(a).then(function(r){aplicarGoogle(corpo,r);return "ok";},function(er){if(window.console)console.error(er);if(corpo.gEvento)corpo.gAtrasado=true;return "falhou";})
-        .then(function(st){return St.salvar("agenda",id||null,corpo).then(function(){
-          S.toast(st==="ok"?"Compromisso salvo e agenda do Google atualizada.":"Compromisso salvo, mas o Google Agenda não foi atualizado agora. No Calendário, use “Atualizar a agenda do Google”.");});});
+        .then(function(st){return St.salvar("agenda",id||null,corpo).then(function(nid){
+          var novoLink=st==="ok"&&corpo.meetLink&&corpo.meetLink!==e.meetLink;
+          S.toast(st!=="ok"?"Compromisso salvo, mas o Google Agenda não foi atualizado agora. No Calendário, use “Atualizar a agenda do Google”.":
+            novoLink?"Reunião criada no Google Agenda. O link está no compromisso.":"Compromisso salvo e agenda do Google atualizada.");
+          if(novoLink)setTimeout(function(){modalEvento(nid||id);},400); /* reabre já com o link à mostra */
+        });});
     },
     aoExcluir:id?function(){return excluirAgenda(id,gOk&&e.gEvento?tokenGoogle():null);}:null});
+  var lk=$('[data-k="linkReuniao"]',d);
+  if(lk&&link){
+    lk.closest("label").insertAdjacentHTML("afterend",'<div class="f--full acoes meet-acoes"><a class="btn btn--linha" target="_blank" rel="noopener" href="'+esc(link)+'">'+ik("video")+'Entrar na reunião ↗</a><button type="button" class="btn btn--linha" data-copiar-meet>'+ik("link")+'Copiar link</button></div>');
+    $("[data-copiar-meet]",d).addEventListener("click",function(){S.copiar(link);});
+  }
   return d;
 }
 M.calendario={render:function(m,id,vista){
@@ -1207,20 +1237,56 @@ M.parceiros={render:function(m,id,vista){
 /* ================= TAREFAS ================= */
 var COLS_K=[["afazer","A fazer","#7D7A75"],["andamento","Em andamento","#B08A3E"],["concluida","Concluídas","#3E6B48"]];
 var fTar={resp:"todos"};
-function ehMinha(t){if(S.ehAdm())return t.resp==="adm";return (S.Sessao.membroId&&t.resp===S.Sessao.membroId)||(S.Sessao.userId&&t.respUser===S.Sessao.userId);}
-/* Quem pode ser responsável: [id, nome, userId]. O colaborador não lê Equipe (dados pessoais),
-   então o adm espelha só os nomes em time/lista, que o colaborador lê. */
+/* Vários responsáveis (pedido da Isys, 2026-11-16): resps = lista de ids ("adm" = Shylton, ou id da Equipe).
+   resp continua gravado ("adm" se o Shylton está entre eles; senão o primeiro) para o que já lia um só, como a função agenda.
+   respH = sha-256 do e-mail de cada colaborador responsável: é assim que o site reconhece o colaborador logado. */
+function respsDe(x){return x&&Array.isArray(x.resps)&&x.resps.length?x.resps.slice():(x&&x.resp?[x.resp]:[]);}
+function meuId(){
+  if(S.ehAdm())return "adm";
+  if(S.Sessao.membroId)return S.Sessao.membroId;
+  var h=S.Sessao.h,l=(St.get("time","lista")||{}).membros||[];
+  for(var i=0;i<l.length;i++)if(h&&l[i][3]===h)return l[i][0];
+  return "";
+}
+function ehMinha(x){
+  if(S.ehAdm())return respsDe(x).indexOf("adm")>=0;
+  var eu=meuId(),h=S.Sessao.h,u=S.Sessao.userId;
+  return !!((eu&&respsDe(x).indexOf(eu)>=0)||(h&&Array.isArray(x.respH)&&x.respH.indexOf(h)>=0)||(u&&(x.respUser===u||(Array.isArray(x.respUsers)&&x.respUsers.indexOf(u)>=0))));
+}
+/* Colaborador só vê tarefa, reunião e compromisso de que é responsável (pedido da Isys, 2026-11-16); produções continuam para todos */
+/* No Supabase o banco já só entrega ao colaborador o que é dele (colab-responsavel.sql): se o site ainda não o achou em time/lista, confia no banco */
+function podeVer(x){return S.ehAdm()||ehMinha(x)||(!!S.Sessao.supa&&!meuId());}
+/* Grava resps, resp, respNome, respH e respUsers a partir dos ids marcados */
+function gravarResps(corpo,rs){
+  var tl=timeLista(),ach=function(r){return tl.filter(function(x){return x[0]===r;})[0];};
+  corpo.resps=rs;corpo.resp=rs.indexOf("adm")>=0?"adm":rs[0];
+  corpo.respNome=rs.map(function(r){if(r==="adm")return "Shylton";var m=ach(r);return m?m[1]:"";}).filter(Boolean).join(", ");
+  corpo.respH=rs.map(function(r){var m=ach(r);return m&&m[3]||"";}).filter(Boolean);
+  corpo.respUsers=rs.map(function(r){var m=ach(r);return m&&m[2]||"";}).filter(Boolean);
+  delete corpo.respUser;
+}
+/* Quem pode ser responsável: [id, nome, userId, hash do e-mail]. O colaborador não lê Equipe (dados pessoais),
+   então o adm espelha só nomes e hashes em time/lista, que o colaborador lê. */
+var hEq={};
 function timeLista(){
-  var adm=["adm","Shylton (administrador)",""];
-  if(S.ehAdm()&&(St.modo!=="db"||St.carregado.equipe))return [adm].concat(St.list("equipe").filter(function(x){return x.status==="ativo";}).map(function(x){return [x.id,x.nome,x.userId||""];}));
-  var l=((St.get("time","lista")||{}).membros||[adm]).slice(),eu=S.Sessao.membroId;
-  if(eu&&!l.some(function(x){return x[0]===eu;}))l.push([eu,S.Sessao.nome||"Eu",S.Sessao.userId||""]);
+  var adm=["adm","Shylton (administrador)","",""];
+  if(S.ehAdm()&&(St.modo!=="db"||St.carregado.equipe))return [adm].concat(St.list("equipe").filter(function(x){return x.status==="ativo";}).map(function(x){return [x.id,x.nome,x.userId||"",(hEq[x.id]||{}).h||""];}));
+  var l=((St.get("time","lista")||{}).membros||[adm]).slice(),eu=meuId();
+  if(eu&&!l.some(function(x){return x[0]===eu;}))l.push([eu,S.Sessao.nome||"Eu",S.Sessao.userId||"",S.Sessao.h||""]);
   return l;
+}
+function hashesEquipe(){
+  return Promise.all(St.list("equipe").filter(function(x){return x.status==="ativo"&&x.email;}).map(function(x){
+    var e=String(x.email).trim().toLowerCase();if(hEq[x.id]&&hEq[x.id].e===e)return null;
+    return S.hashEmail(e).then(function(h){hEq[x.id]={e:e,h:h};});
+  }));
 }
 function syncTime(){
   if(!S.ehAdm()||(St.modo==="db"&&!St.carregado.equipe))return;
-  var l=timeLista();if(JSON.stringify(l)===JSON.stringify((St.get("time","lista")||{}).membros))return;
-  St.salvar("time","lista",{membros:l}).catch(function(){});
+  hashesEquipe().then(function(){
+    var l=timeLista();if(JSON.stringify(l)===JSON.stringify((St.get("time","lista")||{}).membros))return;
+    return St.salvar("time","lista",{membros:l});
+  }).catch(function(){});
 }
 function opcoesResp(){return timeLista().map(function(x){return [x[0],x[1]];});}
 /* ---------- Reunião no Google Meet (pedido da Isys, 2026-11-15) ----------
@@ -1258,11 +1324,12 @@ function gFetch(tok,met,url,corpo){
 function somaHora(h,min){var p=String(h).split(":"),t=(+p[0])*60+(+p[1]||0)+min;return S.pad(Math.floor(t/60)%24)+":"+S.pad(t%60);}
 /* Com horário: evento com hora (fim = horário de fim ou 1 h depois). Sem horário: dia inteiro, do início ao prazo.
    Os null limpam o outro formato quando a tarefa ganha ou perde horário; status "confirmed" traz de volta um evento apagado no Google. */
-function eventoGoogle(t,reun){
+function eventoGoogle(t,reun,comConv){
   var d=t.inicio||t.prazo,ev={summary:t.titulo||(reun?"Reunião":"Tarefa"),description:(t.desc?t.desc+"\n\n":"")+"Tarefa da área restrita · shyltonmavie.com",status:"confirmed"};
   if(t.hora){var hf=t.horaFim||somaHora(t.hora,60),df=hf<=t.hora?S.somaDias(d,1):d;
     ev.start={dateTime:d+"T"+t.hora+":00",timeZone:TZ_G,date:null};ev.end={dateTime:df+"T"+hf+":00",timeZone:TZ_G,date:null};}
   else{var f=t.prazo&&t.prazo>=d?t.prazo:d;ev.start={date:d,dateTime:null,timeZone:null};ev.end={date:S.somaDias(f,1),dateTime:null,timeZone:null};}
+  if(comConv)ev.attendees=listaEmails(t.convidados).map(function(m){return {email:m};}); /* só ao criar ou quando a lista muda */
   return ev;
 }
 function linkMeet(ev){
@@ -1271,12 +1338,13 @@ function linkMeet(ev){
   return /^https:\/\/meet\.google\.com\/[\w-]+$/.test(l)?l:"";
 }
 function linkGoogle(u){return /^https:\/\/(www\.)?google\.com\/calendar\//.test(String(u||""))?u:"";}
-function criarMeet(tok,t){
-  var corpo=Object.assign(eventoGoogle(t,true),{conferenceData:{createRequest:{requestId:"sm"+Date.now().toString(36)+Math.random().toString(36).slice(2,8),conferenceSolutionKey:{type:"hangoutsMeet"}}}});
-  return gFetch(tok,"POST",GEV+"?conferenceDataVersion=1",corpo).then(function(ev){
-    if(linkMeet(ev))return ev;
-    return new Promise(function(ok){setTimeout(ok,2000);}).then(function(){return gFetch(tok,"GET",GEV+"/"+encodeURIComponent(ev.id));}).then(function(e2){return e2&&e2.id?e2:ev;},function(){return ev;});
-  }).then(function(ev){return {meetEvento:ev.id,meetLink:linkMeet(ev),meetGoogle:linkGoogle(ev.htmlLink)};});
+function pedidoMeet(){return {createRequest:{requestId:"sm"+Date.now().toString(36)+Math.random().toString(36).slice(2,8),conferenceSolutionKey:{type:"hangoutsMeet"}}};}
+/* Resposta do Google → campos da tarefa. O link do Meet às vezes chega um instante depois: tenta ler de novo. */
+function resultadoTar(tok,ev,reun){
+  var fim=function(x){return {meetEvento:x.id||ev.id,meetLink:reun?linkMeet(x):"",meetGoogle:linkGoogle(x.htmlLink||ev.htmlLink),meet:!!reun,gAtrasado:""};};
+  if(!reun||linkMeet(ev))return fim(ev);
+  return new Promise(function(ok){setTimeout(ok,2000);}).then(function(){return gFetch(tok,"GET",GEV+"/"+encodeURIComponent(ev.id)+"?conferenceDataVersion=1");})
+    .then(function(e2){return fim(e2&&e2.id?e2:ev);},function(){return fim(ev);});
 }
 function msgGoogle(e){
   var c=e&&e.code||"";
@@ -1293,30 +1361,33 @@ var CAMPOS_MEET=["titulo","desc","inicio","prazo","hora","horaFim"];
    com meetEvento, sem precisar reimplantar). meet:true = evento com Google Meet; tarefa antiga com meetEvento sem "meet" era reunião.
    O que for mudado direto no Google não volta para o site. */
 function temMeet(t){return !!t.meetEvento&&t.meet!==false;}
-function vaiProGoogle(t,reun){return !!(reun||(t.resp==="adm"&&(t.inicio||t.prazo)));}
+/* Convidados (pedido da Isys, 2026-11-16): tarefa com convidados também vai para a agenda do Shylton; o Google manda o convite */
+function vaiProGoogle(t,reun){return !!(reun||((t.resp==="adm"||listaEmails(t.convidados).length)&&(t.inicio||t.prazo)));}
 function criarEvento(tok,t,reun){
-  if(reun)return criarMeet(tok,t).then(function(r){r.meet=true;r.gAtrasado="";return r;});
-  return gFetch(tok,"POST",GEV,eventoGoogle(t,false)).then(function(ev){return {meetEvento:ev.id,meetLink:"",meetGoogle:linkGoogle(ev.htmlLink),meet:false,gAtrasado:""};});
+  var corpo=eventoGoogle(t,reun,true);if(reun)corpo.conferenceData=pedidoMeet();
+  return gFetch(tok,"POST",GEV+QAG,corpo).then(function(ev){if(!ev||!ev.id)throw {code:"google_sem_id"};return resultadoTar(tok,ev,reun);});
 }
 var SEM_EVENTO={meetEvento:"",meetLink:"",meetGoogle:"",meet:"",gAtrasado:""};
-/* O que fazer no Google para a tarefa ficar como "novo" (antes = como está gravada). null = nada a fazer. */
+/* O que fazer no Google para a tarefa ficar como "novo" (antes = como está gravada). null = nada a fazer.
+   Ligar ou desligar o Meet muda o mesmo evento (sem apagar), para os convidados não receberem cancelamento. */
 function acaoGoogle(antes,novo,reun){
-  var quer=vaiProGoogle(novo,reun),id=antes.meetEvento,enc=encodeURIComponent(id||"");
+  var quer=vaiProGoogle(novo,reun),id=antes.meetEvento,enc=encodeURIComponent(id||""),tem=temMeet(antes),
+    conv=(novo.convidados||"")!==(antes.convidados||"");
   if(quer&&!id)return function(tok){return criarEvento(tok,novo,reun);};
-  if(quer&&reun!==temMeet(antes))return function(tok){return gFetch(tok,"DELETE",GEV+"/"+enc).then(function(){return criarEvento(tok,novo,reun);});};
-  if(quer&&(antes.gAtrasado||CAMPOS_MEET.some(function(k){return (novo[k]||"")!==(antes[k]||"");})))return function(tok){
-    return gFetch(tok,"PATCH",GEV+"/"+enc,eventoGoogle(novo,reun)).then(function(){return {gAtrasado:""};},function(e){
+  if(quer&&(antes.gAtrasado||conv||reun!==tem||CAMPOS_MEET.some(function(k){return (novo[k]||"")!==(antes[k]||"");})))return function(tok){
+    var corpo=eventoGoogle(novo,reun,conv||!!antes.gAtrasado);if(reun!==tem)corpo.conferenceData=reun?pedidoMeet():null;
+    return gFetch(tok,"PATCH",GEV+"/"+enc+QAG,corpo).then(function(ev){return resultadoTar(tok,ev,reun);},function(e){
       if(e&&(e.code==="google_404"||e.code==="google_410"))return criarEvento(tok,novo,reun); /* sumiu do Google: cria de novo */
       throw e;});
   };
-  if(!quer&&id)return function(tok){return gFetch(tok,"DELETE",GEV+"/"+enc).then(function(){return SEM_EVENTO;});};
+  if(!quer&&id)return function(tok){return gFetch(tok,"DELETE",GEV+"/"+enc+QDEL).then(function(){return SEM_EVENTO;});};
   return null;
 }
 function aplicarGoogle(corpo,r){Object.keys(r).forEach(function(k){if(r[k]===""||r[k]==null)delete corpo[k];else corpo[k]=r[k];});}
 /* Tarefas que ficaram para trás no Google: mudadas por colaborador (gAtrasado) ou do Shylton com data que ainda não foram */
 function pendGoogle(){
   var h=S.hoje();
-  return St.list("tarefas").filter(function(t){return t.gAtrasado||(!t.meetEvento&&t.resp==="adm"&&(t.prazo||t.inicio)>=h);});
+  return St.list("tarefas").filter(function(t){return t.gAtrasado||(!t.meetEvento&&(t.resp==="adm"||listaEmails(t.convidados).length)&&(t.prazo||t.inicio)>=h);});
 }
 /* ---------- Compromissos e produções do Shylton direto na agenda dele (pedido da Isys, 2026-11-15) ----------
    Mesmo esquema das tarefas: o id do evento fica em gEvento no registro da agenda (a produção usa o registro "prod-<id>").
@@ -1324,27 +1395,46 @@ function pendGoogle(){
    A função agenda (link .ics) pula o que tem gEvento ou gApagar. */
 var CAMPOS_AG=["titulo","desc","local","data","dataFim","hora","horaFim","tipo"];
 function gOkAdm(){return S.ehAdm()&&!!googleId();}
-function vaiAgenda(e){return !!(e&&e.data&&(e.tipo==="producao"||(e.resp||"adm")==="adm"));} /* antigo sem responsável: do Shylton */
-/* Com horário: sem fim, dura 2 h (como o link .ics). Sem horário: dia inteiro, do início ao fim. */
-function eventoAgenda(e){
+/* Reunião online e convidados (pedido da Isys, 2026-11-16): o evento sai da agenda do Shylton, com Meet (meet = pedido,
+   gMeet = criado no Google, meetLink = link) e convidados (e-mails); o Google manda o convite e avisa mudança e cancelamento. */
+function listaEmails(s){return String(s||"").split(/[\s,;]+/).map(function(x){return x.trim().toLowerCase();}).filter(function(x,i,a){return x&&a.indexOf(x)===i;});}
+function emailOk(x){return /^[^@\s<>"(),;]+@[^@\s<>"(),;]+\.[a-z]{2,}$/i.test(x);}
+function vaiAgenda(e){return !!(e&&e.data&&(e.tipo==="producao"||(e.resp||"adm")==="adm"||e.meet||listaEmails(e.convidados).length));} /* antigo sem responsável: do Shylton */
+var QAG="?conferenceDataVersion=1&sendUpdates=all",QDEL="?sendUpdates=all";
+/* Com horário: sem fim, dura 2 h (como o link .ics). Sem horário: dia inteiro, do início ao fim.
+   comConv: manda a lista de convidados (só ao criar ou quando muda, para não zerar as respostas de quem já aceitou). */
+function eventoAgenda(e,comConv){
   var d=e.data,f=e.dataFim&&e.dataFim>=d?e.dataFim:d,
     ev={summary:e.titulo||"Compromisso",location:e.local||"",description:(e.desc?e.desc+"\n\n":"")+(e.tipo==="producao"?"Produção":"Compromisso")+" da área restrita · shyltonmavie.com",status:"confirmed"};
   if(e.hora){var hf=e.horaFim||somaHora(e.hora,120),df=f;if(df===d&&hf<=e.hora)df=S.somaDias(d,1);
     ev.start={dateTime:d+"T"+e.hora+":00",timeZone:TZ_G,date:null};ev.end={dateTime:df+"T"+hf+":00",timeZone:TZ_G,date:null};}
   else{ev.start={date:d,dateTime:null,timeZone:null};ev.end={date:S.somaDias(f,1),dateTime:null,timeZone:null};}
+  if(comConv&&e.tipo!=="producao")ev.attendees=listaEmails(e.convidados).map(function(m){return {email:m};});
   return ev;
 }
-function criarEvAg(tok,e){return gFetch(tok,"POST",GEV,eventoAgenda(e)).then(function(ev){if(!ev||!ev.id)throw {code:"google_sem_id"};return {gEvento:ev.id,gAtrasado:""};});}
+/* Resposta do Google → campos do registro. O link do Meet às vezes chega um instante depois: tenta ler de novo. */
+function resultadoAg(tok,ev,m){
+  var fim=function(x){return {gEvento:x.id||ev.id,gAtrasado:"",gMeet:m?true:"",meetLink:m?linkMeet(x):""};};
+  if(!m||linkMeet(ev))return fim(ev);
+  return new Promise(function(ok){setTimeout(ok,2000);}).then(function(){return gFetch(tok,"GET",GEV+"/"+encodeURIComponent(ev.id)+"?conferenceDataVersion=1");})
+    .then(function(e2){return fim(e2&&e2.id?e2:ev);},function(){return fim(ev);});
+}
+function criarEvAg(tok,e){
+  var corpo=eventoAgenda(e,true);if(e.meet)corpo.conferenceData=pedidoMeet();
+  return gFetch(tok,"POST",GEV+QAG,corpo).then(function(ev){if(!ev||!ev.id)throw {code:"google_sem_id"};return resultadoAg(tok,ev,!!e.meet);});
+}
 /* O que fazer no Google para o compromisso ficar como "novo" (antes = como está gravado). null = nada a fazer. */
 function acaoAgenda(antes,novo){
-  var quer=vaiAgenda(novo),id=antes.gEvento,enc=encodeURIComponent(id||"");
+  var quer=vaiAgenda(novo),id=antes.gEvento,enc=encodeURIComponent(id||""),mq=!!novo.meet,mt=!!antes.gMeet,
+    conv=(novo.convidados||"")!==(antes.convidados||"");
   if(quer&&!id)return function(tok){return criarEvAg(tok,novo);};
-  if(quer&&(antes.gAtrasado||CAMPOS_AG.some(function(k){return (novo[k]||"")!==(antes[k]||"");})))return function(tok){
-    return gFetch(tok,"PATCH",GEV+"/"+enc,eventoAgenda(novo)).then(function(){return {gAtrasado:""};},function(er){
+  if(quer&&(antes.gAtrasado||conv||mq!==mt||CAMPOS_AG.some(function(k){return (novo[k]||"")!==(antes[k]||"");})))return function(tok){
+    var corpo=eventoAgenda(novo,conv||!!antes.gAtrasado);if(mq!==mt)corpo.conferenceData=mq?pedidoMeet():null;
+    return gFetch(tok,"PATCH",GEV+"/"+enc+QAG,corpo).then(function(ev){return resultadoAg(tok,ev,mq);},function(er){
       if(er&&(er.code==="google_404"||er.code==="google_410"))return criarEvAg(tok,novo); /* sumiu do Google: cria de novo */
       throw er;});
   };
-  if(!quer&&id)return function(tok){return gFetch(tok,"DELETE",GEV+"/"+enc).then(function(){return {gEvento:"",gAtrasado:""};});};
+  if(!quer&&id)return function(tok){return gFetch(tok,"DELETE",GEV+"/"+enc+QDEL).then(function(){return {gEvento:"",gAtrasado:"",gMeet:"",meetLink:""};});};
   return null;
 }
 /* Registro da agenda feito pela produção (null = produção sem data ou cancelada: sai da agenda) */
@@ -1374,7 +1464,7 @@ function excluirAgenda(id,tokP){
   if(!e.gEvento)return St.excluir("agenda",id);
   var marca=function(){var c=St.copia("agenda",id);delete c.id;c.gApagar=true;return St.salvar("agenda",id,c);};
   if(!tokP)return marca();
-  return tokP.then(function(tok){return gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(e.gEvento));}).then(function(){return St.excluir("agenda",id);},function(er){
+  return tokP.then(function(tok){return gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(e.gEvento)+QDEL);}).then(function(){return St.excluir("agenda",id);},function(er){
     if(window.console)console.error(er);return marca().then(function(){S.toast("O evento continua no Google Agenda por enquanto: no Calendário, use “Atualizar a agenda do Google”.");});});
 }
 function pendAgenda(){
@@ -1390,7 +1480,7 @@ function sincPendentes(){
       return a(tok).then(function(r){var c=St.copia("tarefas",t.id);if(!c)return;delete c.id;aplicarGoogle(c,r);feitos++;return St.salvar("tarefas",t.id,c);});
     });},Promise.resolve());
     return la.reduce(function(p,e){return p.then(function(){
-      if(e.gApagar)return (e.gEvento?gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(e.gEvento)):Promise.resolve()).then(function(){feitos++;return St.excluir("agenda",e.id);});
+      if(e.gApagar)return (e.gEvento?gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(e.gEvento)+QDEL):Promise.resolve()).then(function(){feitos++;return St.excluir("agenda",e.id);});
       var a=acaoAgenda(e,e);if(!a){if(!e.gAtrasado)return;a=function(){return Promise.resolve({gAtrasado:""});};}
       return a(tok).then(function(r){var c=St.copia("agenda",e.id);if(!c)return;delete c.id;aplicarGoogle(c,r);feitos++;return St.salvar("agenda",e.id,c);});
     });},pt).then(function(){return feitos;});
@@ -1410,42 +1500,55 @@ function avisoGoogleEm(bx){
   return pinta;
 }
 function modalTarefa(id,coluna){
-  var adm=S.ehAdm(),t=id?St.copia("tarefas",id):{coluna:coluna||"afazer",resp:adm?"adm":(S.Sessao.membroId||""),criadaEm:S.agoraISO()};
+  var adm=S.ehAdm(),t=id?St.copia("tarefas",id):{coluna:coluna||"afazer",resp:meuId(),criadaEm:S.agoraISO()};
   var gOk=adm&&!!googleId();
   if(temMeet(t))t.reuniao=true;
+  if(adm)hashesEquipe().catch(function(){}); /* hash do e-mail de cada colaborador, para ele achar a tarefa */
+  t.resps=respsDe(t).filter(Boolean);
   var cs=[{k:"titulo",r:"Tarefa",req:1,full:1},{k:"desc",r:"Detalhes",t:"area",full:1},
     {k:"inicio",r:"Início",t:"date"},{k:"prazo",r:"Prazo (fim)",t:"date"},{k:"hora",r:"Horário de início",t:"time"},{k:"horaFim",r:"Horário de fim",t:"time"}];
-  if(gOk)cs.push({k:"reuniao",r:"Reunião online (Google Meet na agenda do Shylton)",t:"check",full:1});
-  cs.push({k:"resp",r:"Responsável",t:"select",o:opcoesResp()},{k:"coluna",r:"Coluna",t:"select",o:COLS_K});
+  /* Link da reunião à mostra e convidados por e-mail, como no Calendário (pedido da Isys, 2026-11-16) */
+  var link=temMeet(t)?linkMeet({hangoutLink:t.meetLink}):"";
+  if(gOk){t.linkReuniao=link;
+    cs.push({k:"reuniao",r:"Reunião online (Google Meet): o link é criado sozinho na agenda do Shylton",t:"check",full:1},
+      {k:"linkReuniao",r:"Link da reunião",ro:1,full:1,ph:temMeet(t)?"O link está no evento do Google Agenda":"O link do Meet aparece aqui depois de salvar"},
+      {k:"convidados",r:"Convidados (e-mails)",t:"area",full:1,alt:72,ph:"nome@exemplo.com",ajuda:"Um por linha ou separados por vírgula. O Google manda o convite por e-mail e avisa os convidados se mudar a data ou cancelar."});}
+  cs.push({k:"resps",r:"Responsáveis",t:"multi",o:opcoesResp(),ajuda:adm?"Marque um ou mais. O colaborador só vê as tarefas de que é responsável.":"Marque um ou mais. Você continua entre eles: a tarefa só aparece para quem é responsável."},{k:"coluna",r:"Coluna",t:"select",o:COLS_K});
   var temData=id&&(t.inicio||t.prazo);
-  /* Sem botão de entrar na reunião (pedido da Isys, 2026-11-15): o Shylton entra pelo Google Agenda */
-  var meet=temMeet(t)?'<p class="nota t-meet">'+ik("video")+'Reunião no Google Meet marcada na agenda do Shylton. Para entrar, abra o Google Agenda.</p>':
-    t.meetEvento?'<p class="nota t-meet">'+ik("calendario")+'Na agenda do Shylton no Google: mudar a data ou excluir aqui atualiza lá.</p>':'';
+  /* Quem não mexe no Google (colaborador) vê o link para entrar */
+  var meet=gOk?(t.meetEvento?'<p class="nota t-meet">'+ik("calendario")+'Na agenda do Shylton no Google: mudar a data ou excluir aqui atualiza lá.</p>':''):
+    link?'<p class="nota t-meet">'+ik("video")+'<a class="lnk" target="_blank" rel="noopener" href="'+esc(link)+'">Entrar na reunião (Google Meet) ↗</a></p>':
+    temMeet(t)?'<p class="nota t-meet">'+ik("video")+'Reunião no Google Meet marcada na agenda do Shylton.</p>':'';
   /* "Adicionar ao Google Agenda" fazia uma cópia solta no Google (não mudava nem sumia com a tarefa): só para quem não vai sozinho */
-  var copia=temData&&!t.meetEvento&&!(gOk&&t.resp==="adm");
+  var copia=temData&&!t.meetEvento&&!(gOk&&respsDe(t).indexOf("adm")>=0);
   var nota='<p class="nota" style="margin-top:var(--s-16)">Com data de início ou prazo, a tarefa aparece no Calendário da área restrita, do início ao prazo.'+
     (gOk?' Tarefa do Shylton com data vai direto para a agenda dele no Google (ao salvar, o Google pode pedir para entrar com a conta dele); mudar a data ou excluir aqui atualiza lá. Com <b>Reunião online</b>, informe a data e o horário: a reunião com Meet vai para a agenda dele.':adm?' Para mandar tarefas e reuniões do Google Meet direto para a agenda do Shylton, configure em <a class="lnk" href="#adm/ajustes">Ajustes › Reuniões no Google Meet</a>.':'')+
     (copia?' <a class="lnk" target="_blank" rel="noopener" href="'+esc(gcal(evTarefa(Object.assign({id:id},t))))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a>':'')+'</p>';
   if(gOk)prepararGoogle().catch(function(){});
-  S.modalForm({sobre:"Tarefas",titulo:id?"Editar tarefa":"Nova tarefa",campos:cs,dados:t,salvarRot:id?"Salvar":"+ Adicionar",
+  var d=S.modalForm({sobre:"Tarefas",titulo:id?"Editar tarefa":"Nova tarefa",campos:cs,dados:t,salvarRot:id?"Salvar":"+ Adicionar",
     depois:meet+nota,
     aoSalvar:function(v){
-      var corpo=Object.assign({},t,v);delete corpo.id;
+      var corpo=Object.assign({},t,v);delete corpo.id;delete corpo.linkReuniao;
       if(corpo.coluna==="concluida"){if(t.coluna!=="concluida"||!corpo.concluidaEm)corpo.concluidaEm=S.agoraISO();}else delete corpo.concluidaEm;
       delete corpo.calendario; /* opção antiga: agora toda tarefa com data vai para o calendário */
       if(corpo.inicio&&corpo.prazo&&corpo.prazo<corpo.inicio)corpo.prazo=corpo.inicio;
-      var mb=timeLista().filter(function(x){return x[0]===corpo.resp;})[0];
-      if(corpo.resp==="adm"){corpo.respNome="Shylton";corpo.respUser="";}
-      else if(mb){corpo.respNome=mb[1];corpo.respUser=mb[2];}
-      else if(!id&&!adm){corpo.respNome=S.Sessao.nome||"";corpo.respUser=S.Sessao.userId||"";}
+      var rs=(v.resps||[]).filter(Boolean);
+      if(!rs.length){S.toast("Marque pelo menos um responsável.");return false;}
+      gravarResps(corpo,rs);
+      /* o banco só deixa o colaborador gravar tarefa de que é responsável */
+      if(!adm&&meuId()&&!ehMinha(corpo)){S.toast("Você precisa continuar como responsável. Para passar a tarefa só para outra pessoa, peça ao Shylton.");return false;}
       /* nova na coluna, ou trocou de coluna: vai para o fim, se a coluna já tem ordem manual */
       if(!id||corpo.coluna!==t.coluna){var fim=fimDaColuna(corpo.coluna,id);if(fim==null)delete corpo.ordem;else corpo.ordem=fim;}
       /* Google: criar, atualizar ou apagar o evento antes de gravar a tarefa */
       var reun=!!corpo.reuniao,acao=null;delete corpo.reuniao;
       if(gOk){
         if(reun&&(!(corpo.inicio||corpo.prazo)||!corpo.hora)){S.toast("Para a reunião online, informe a data de início e o horário.");return false;}
+        var ems=listaEmails(v.convidados),ruins=ems.filter(function(x){return !emailOk(x);});
+        if(ruins.length){S.toast("Confira "+(ruins.length===1?"este e-mail":"estes e-mails")+": "+ruins.join(", ")+".");return false;}
+        if(ems.length&&!(corpo.inicio||corpo.prazo)){S.toast("Para mandar o convite, informe a data de início.");return false;}
+        if(ems.length)corpo.convidados=ems.join(", ");else delete corpo.convidados;
         acao=acaoGoogle(t,corpo,reun);
-      }else if(!adm&&t.meetEvento&&(corpo.resp!==t.resp||CAMPOS_MEET.some(function(k){return (corpo[k]||"")!==(t[k]||"");})))
+      }else if(!adm&&t.meetEvento&&(corpo.resp!==t.resp||String(corpo.resps)!==String(respsDe(t))||CAMPOS_MEET.some(function(k){return (corpo[k]||"")!==(t[k]||"");})))
         corpo.gAtrasado=true; /* colaborador mudou tarefa que está no Google: o adm atualiza em Tarefas */
       /* Reunião (criar ou tirar o Meet) sem o Google não salva; tarefa simples salva e o Google é atualizado depois */
       var comMeet=reun||temMeet(t);
@@ -1461,16 +1564,24 @@ function modalTarefa(id,coluna){
       }):Promise.resolve("");
       return passo.then(function(st){
         if(!st&&st!=="")return false;
-        return St.salvar("tarefas",id||null,corpo).then(function(){
+        return St.salvar("tarefas",id||null,corpo).then(function(nid){
+          var novoLink=st==="ok"&&corpo.meetLink&&corpo.meetLink!==(t.meetLink||"");
           S.toast(st==="falhou"?"Tarefa salva, mas o Google Agenda não foi atualizado agora. Em Tarefas, use “Atualizar a agenda do Google”.":
+            novoLink?"Reunião criada no Google Agenda. O link está na tarefa.":
             st==="ok"&&reun&&!t.meetEvento?"Tarefa salva e reunião criada no Google Agenda.":st==="ok"?"Tarefa salva e agenda do Google atualizada.":"Tarefa salva.");
+          if(novoLink)setTimeout(function(){modalTarefa(nid||id);},400); /* reabre já com o link à mostra */
         });
       });
     },
     aoExcluir:id&&adm?function(){
-      var tira=t.meetEvento&&gOk?tokenGoogle().then(function(tok){return gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(t.meetEvento));}).then(null,function(){S.toast("O evento continua no Google Agenda: apague por lá.");}):Promise.resolve();
+      var tira=t.meetEvento&&gOk?tokenGoogle().then(function(tok){return gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(t.meetEvento)+QDEL);}).then(null,function(){S.toast("O evento continua no Google Agenda: apague por lá.");}):Promise.resolve();
       return tira.then(function(){return St.excluir("tarefas",id);});
     }:null});
+  var lk=$('[data-k="linkReuniao"]',d);
+  if(lk&&link){
+    lk.closest("label").insertAdjacentHTML("afterend",'<div class="f--full acoes meet-acoes"><a class="btn btn--linha" target="_blank" rel="noopener" href="'+esc(link)+'">'+ik("video")+'Entrar na reunião ↗</a><button type="button" class="btn btn--linha" data-copiar-meet>'+ik("link")+'Copiar link</button></div>');
+    $("[data-copiar-meet]",d).addEventListener("click",function(){S.copiar(link);});
+  }
 }
 /* Rodapé do cartão: 12/11 → 15/11 · 09:00; o ícone de calendário aparece quando a tarefa está no calendário */
 function quando(t){
@@ -1503,6 +1614,76 @@ function reordenarTarefa(id,vizId){
     var c=St.copia("tarefas",x.id);delete c.id;c.ordem=k;return St.salvar("tarefas",x.id,c);
   })).catch(S.erroGravar);
 }
+/* Soltar o cartão arrastado antes de outro (antesId) ou no fim da coluna col; renumera a coluna de destino (pedido da Isys, 2026-11-16) */
+function soltarTarefa(id,col,antesId){
+  var t=St.get("tarefas",id);if(!t)return;
+  var de=t.coluna||"afazer",l=colunaK(col).filter(function(x){return x.id!==id;}),ids=l.map(function(x){return x.id;});
+  var j=antesId?ids.indexOf(antesId):-1;if(j<0)j=l.length;
+  if(de===col&&colunaK(col).map(function(x){return x.id;}).indexOf(id)===j)return; /* voltou para o mesmo lugar */
+  l.splice(j,0,Object.assign({},t,{id:id}));
+  Promise.all(l.map(function(x,k){
+    var mov=x.id===id;
+    if(x.ordem===k&&!(mov&&de!==col))return null;
+    var c=St.copia("tarefas",x.id);if(!c)return null;delete c.id;c.ordem=k;
+    if(mov&&de!==col){c.coluna=col;if(col==="concluida")c.concluidaEm=S.agoraISO();else delete c.concluidaEm;}
+    return St.salvar("tarefas",x.id,c);
+  })).catch(S.erroGravar);
+}
+/* Arrastar cartões com mouse ou dedo: solta entre outros cartões para mudar a ordem, ou em outra coluna.
+   No toque, segura o cartão um instante para pegar (assim a rolagem da página continua normal). */
+var arK=null,arKSoltou=false;
+function fimArrasto(){
+  if(!arK)return;var a=arK;arK=null;
+  if(a.timer)clearTimeout(a.timer);if(a.fant)a.fant.remove();if(a.marca)a.marca.remove();
+  a.card.classList.remove("arrastando");$$(".kcol").forEach(function(k){k.classList.remove("sobre");});
+  return a;
+}
+function moverArrasto(x,y){
+  var a=arK;a.fant.style.transform="translate("+(x-a.dx)+"px,"+(y-a.dy)+"px)";
+  var el=document.elementFromPoint(x,y),k=el&&el.closest(".kcol");
+  if(k&&!a.caixa.contains(k))k=null;
+  $$(".kcol",a.caixa).forEach(function(c){c.classList.toggle("sobre",c===k);});
+  a.col=k?k.getAttribute("data-col"):null;
+  if(!k){a.marca.remove();return;}
+  var cs=$$(".kcard",k).filter(function(c){return c!==a.card;}),antes=null;
+  for(var i=0;i<cs.length;i++){var r=cs[i].getBoundingClientRect();if(y<r.top+r.height/2){antes=cs[i];break;}}
+  a.antes=antes?antes.getAttribute("data-tarefa"):"";
+  k.insertBefore(a.marca,antes||$(".k-nova",k));
+  if(y<64)window.scrollBy(0,-14);else if(y>window.innerHeight-64)window.scrollBy(0,14);
+}
+function comecarArrasto(){
+  var a=arK,r=a.card.getBoundingClientRect(),f=a.card.cloneNode(true);
+  a.ativo=true;a.dx=a.x0-r.left;a.dy=a.y0-r.top;
+  f.classList.add("kcard--fantasma");f.setAttribute("aria-hidden","true");f.style.width=r.width+"px";
+  f.style.setProperty("--c",getComputedStyle(a.card).getPropertyValue("--c"));
+  document.body.appendChild(f);a.fant=f;a.card.classList.add("arrastando");
+  a.marca=document.createElement("div");a.marca.className="k-marca";
+  if(a.toque&&navigator.vibrate)try{navigator.vibrate(12);}catch(e){}
+  moverArrasto(a.x0,a.y0);
+}
+document.addEventListener("pointermove",function(e){
+  var a=arK;if(!a||e.pointerId!==a.pid)return;
+  if(!a.ativo){var d=Math.abs(e.clientX-a.x0)+Math.abs(e.clientY-a.y0);
+    if(a.toque){if(d>10)fimArrasto();return;} /* dedo andou antes de segurar: é rolagem */
+    if(d<6)return;comecarArrasto();}
+  e.preventDefault();moverArrasto(e.clientX,e.clientY);
+});
+document.addEventListener("pointerup",function(e){
+  if(!arK||e.pointerId!==arK.pid)return;
+  var ativo=arK.ativo,a=fimArrasto();
+  if(ativo){arKSoltou=true;setTimeout(function(){arKSoltou=false;},0);if(a.col)soltarTarefa(a.id,a.col,a.antes);}
+});
+document.addEventListener("pointercancel",function(e){if(arK&&e.pointerId===arK.pid)fimArrasto();});
+document.addEventListener("touchmove",function(e){if(arK&&arK.ativo)e.preventDefault();},{passive:false});
+function ligarArrasto(caixa){
+  caixa.addEventListener("pointerdown",function(e){
+    if(e.button>0||arK)return;var c=e.target.closest("[data-tarefa]");if(!c||e.target.closest("button,a"))return;
+    arK={caixa:caixa,card:c,id:c.getAttribute("data-tarefa"),x0:e.clientX,y0:e.clientY,pid:e.pointerId,toque:e.pointerType!=="mouse",ativo:false};
+    if(arK.toque)arK.timer=setTimeout(function(){if(arK&&!arK.ativo)comecarArrasto();},350);
+  });
+  caixa.addEventListener("click",function(e){if(arKSoltou){e.stopPropagation();e.preventDefault();}},true); /* soltar não abre o cartão */
+  caixa.addEventListener("contextmenu",function(e){if(arK&&arK.toque)e.preventDefault();});
+}
 /* Concluídas há 40 dias ou mais são apagadas ao abrir Tarefas. Concluídas antigas sem data começam a contar agora. */
 var DIAS_CONCLUIDA=40,apagando={};
 function limparConcluidas(){
@@ -1519,16 +1700,17 @@ function velha(t){return t.coluna==="concluida"&&t.concluidaEm&&String(t.conclui
 M.tarefas={render:function(m,id,vista){
   var adm=S.ehAdm();
   syncTime();
-  var eu=adm?"adm":S.Sessao.membroId;
+  var eu=meuId();
   var opts=[["todos","Todas"],["minhas","Minhas"]].concat(timeLista().filter(function(x){return x[0]!==eu;}).map(function(x){return [x[0],x[1]];}));
-  if(!opts.some(function(o){return o[0]===fTar.resp;}))fTar.resp="todos";
-  m.innerHTML=cab("Tarefas",adm?"Para você e para a equipe. Use o filtro para ver as suas, as de um colaborador ou as de toda a equipe; arraste os cartões entre as colunas e use as setas ↑ ↓ para mudar a ordem. Concluídas há 40 dias são apagadas sozinhas.":"Suas tarefas e as da equipe. Escolha o responsável de cada tarefa e use o filtro para ver as de cada pessoa; arraste os cartões entre as colunas e use as setas ↑ ↓ para mudar a ordem. Concluídas há 40 dias são apagadas sozinhas.",'<button type="button" class="btn btn--escuro" data-nova>'+ik("mais")+'Nova tarefa</button>')+
-    '<div class="k-filtro"><label class="f">Mostrar tarefas de'+selectHTML("data-resp",opts,fTar.resp)+'</label><p class="k-filtro__n" id="k-total"></p></div><div id="k-google"></div><div id="sis-lista"></div>';
+  if(!adm)fTar.resp="minhas"; /* colaborador só vê as tarefas de que é responsável (pedido da Isys, 2026-11-16) */
+  else if(!opts.some(function(o){return o[0]===fTar.resp;}))fTar.resp="todos";
+  m.innerHTML=cab("Tarefas",adm?"Para você e para a equipe. Uma tarefa pode ter vários responsáveis; o colaborador só vê as dele. Use o filtro para ver as suas, as de um colaborador ou as de toda a equipe; arraste os cartões para mudar a ordem ou a coluna (no celular, segure o cartão um instante) ou use as setas. Concluídas há 40 dias são apagadas sozinhas.":"Suas tarefas: aparecem só as de que você é responsável. Arraste os cartões para mudar a ordem ou a coluna (no celular, segure o cartão um instante) ou use as setas. Concluídas há 40 dias são apagadas sozinhas.",'<button type="button" class="btn btn--escuro" data-nova>'+ik("mais")+'Nova tarefa</button>')+
+    '<div class="k-filtro">'+(adm?'<label class="f">Mostrar tarefas de'+selectHTML("data-resp",opts,fTar.resp)+'</label>':'')+'<p class="k-filtro__n" id="k-total"></p></div><div id="k-google"></div><div id="sis-lista"></div>';
   $("[data-nova]",m).addEventListener("click",function(){modalTarefa(null);});
   /* Aviso do adm: tarefas que ainda não estão (ou não estão em dia) na agenda do Shylton no Google */
   var gOk=adm&&!!googleId();if(gOk)prepararGoogle().catch(function(){});
   var avisoGoogle=avisoGoogleEm($("#k-google",m));
-  $("[data-resp]",m).addEventListener("change",function(e){fTar.resp=e.target.value;vista.atualizar();});
+  var fr=$("[data-resp]",m);if(fr)fr.addEventListener("change",function(e){fTar.resp=e.target.value;vista.atualizar();});
   var caixa=$("#sis-lista",m);
   caixa.addEventListener("click",function(e){
     if(e.target.closest("a"))return; /* link do Meet no cartão */
@@ -1537,21 +1719,18 @@ M.tarefas={render:function(m,id,vista){
     var nv=e.target.closest("[data-nova-col]");if(nv){modalTarefa(null,nv.getAttribute("data-nova-col"));return;}
     var c=e.target.closest("[data-tarefa]");if(c)modalTarefa(c.getAttribute("data-tarefa"));
   });
-  caixa.addEventListener("dragstart",function(e){var c=e.target.closest("[data-tarefa]");if(!c)return;e.dataTransfer.setData("text/plain",c.getAttribute("data-tarefa"));e.dataTransfer.effectAllowed="move";c.classList.add("arrastando");});
-  caixa.addEventListener("dragend",function(e){var c=e.target.closest("[data-tarefa]");if(c)c.classList.remove("arrastando");$$(".kcol",caixa).forEach(function(k){k.classList.remove("sobre");});});
-  caixa.addEventListener("dragover",function(e){var k=e.target.closest(".kcol");if(!k)return;e.preventDefault();$$(".kcol",caixa).forEach(function(x){x.classList.toggle("sobre",x===k);});});
-  caixa.addEventListener("drop",function(e){var k=e.target.closest(".kcol");if(!k)return;e.preventDefault();k.classList.remove("sobre");var tid=e.dataTransfer.getData("text/plain");if(tid)moverTarefa(tid,k.getAttribute("data-col"));});
+  ligarArrasto(caixa);
   vista.atualizar=function(){
     var h=S.hoje();
     limparConcluidas();avisoGoogle();
-    var l=St.list("tarefas").filter(function(t){return !velha(t)&&(fTar.resp==="todos"||(fTar.resp==="minhas"?ehMinha(t):t.resp===fTar.resp));});
+    var l=St.list("tarefas").filter(function(t){return !velha(t)&&podeVer(t)&&(fTar.resp==="todos"||(fTar.resp==="minhas"?ehMinha(t):respsDe(t).indexOf(fTar.resp)>=0));});
     $("#k-total",m).innerHTML='<b>'+l.length+'</b> '+(l.length===1?"cartão":"cartões");
     caixa.innerHTML='<div class="kanban">'+COLS_K.map(function(c,ci){
       var ts=l.filter(function(t){return (t.coluna||"afazer")===c[0];}).sort(porOrdemK);
       return '<section class="kcol'+(c[0]==="concluida"?" kcol--feita":"")+'" data-col="'+c[0]+'" style="--c:'+c[2]+'"><h2><i aria-hidden="true"></i>'+c[1]+'<span>'+ts.length+'</span></h2>'+
         ts.map(function(t,ti){
-          var atras=t.prazo&&t.prazo<h&&c[0]!=="concluida",resp=t.respNome||(t.resp==="adm"?"Shylton":"");
-          return '<article class="kcard" draggable="true" data-tarefa="'+esc(t.id)+'">'+(resp?'<span class="av av--p" title="'+esc(resp)+'">'+esc(iniciais(resp))+'</span>':'')+'<h3>'+esc(t.titulo)+'</h3>'+(t.desc?'<p>'+esc(String(t.desc).slice(0,120))+'</p>':'')+
+          var atras=t.prazo&&t.prazo<h&&c[0]!=="concluida",resp=t.respNome||(t.resp==="adm"?"Shylton":""),nomes=resp?resp.split(", "):[];
+          return '<article class="kcard" data-tarefa="'+esc(t.id)+'">'+(nomes.length?'<span class="kcard__avs">'+nomes.slice(0,3).map(function(n){return '<span class="av av--p" title="'+esc(n)+'">'+esc(iniciais(n))+'</span>';}).join("")+'</span>':'')+'<h3>'+esc(t.titulo)+'</h3>'+(t.desc?'<p>'+esc(String(t.desc).slice(0,120))+'</p>':'')+
             (resp?'<p class="kcard__resp">'+esc(resp)+'</p>':'')+
             '<div class="kcard__pe"><span class="kcard__data'+(atras?" atrasada":"")+'"'+(t.inicio||t.prazo?' title="Aparece no calendário"':'')+'>'+quando(t)+'</span><span class="kcard__mov">'+
             (ti>0?'<button type="button" data-ordem="'+esc(ts[ti-1].id)+'" data-id="'+esc(t.id)+'" aria-label="Subir o cartão" title="Subir">'+ik("acima")+'</button>':'')+

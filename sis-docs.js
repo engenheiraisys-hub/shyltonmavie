@@ -520,59 +520,124 @@ function faltando(ct){
   return r;
 }
 
-/* ---------- .docx (Office Open XML, montado no navegador) ---------- */
+/* ---------- .docx (Office Open XML, montado no navegador) ----------
+   Tudo explícito no arquivo (pedido da Isys, 2026-11-16: fontes e espaçamento chegavam desconfigurados):
+   • Arial em todo o texto, no estilo Normal, na tabela de fontes e em cada trecho: Word, Google Docs, Pages e celular abrem igual;
+   • espaçamento (antes, depois e entrelinha 1,4, perto da tela) em cada parágrafo; configurações do Word atual
+     (sem "modo de compatibilidade") e hifenização em português, como na tela, para o justificado não abrir buracos;
+   • marca = imagem do símbolo e do nome em Josefin Sans 335, como na tela (a fonte não vem instalada e o Word trocava por uma serifada);
+   • assinaturas lado a lado, como na tela. */
+var W_NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"',A_NS="http://schemas.openxmlformats.org/drawingml/2006/main",XML_CAB='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+var DFONTE='<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial" w:cs="Arial"/>',DLINHA=336;
 function xesc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
-function runs(t,base){
-  base=base||"";var out="",partes=t.split(/(\*\*.+?\*\*|⟦.+?⟧)/g);
-  partes.forEach(function(p){
+/* ordem exigida pelo Word no rPr: rFonts, b, bCs, spacing, sz, szCs, highlight */
+function rpr(o){var sz=o.sz||21;return DFONTE+(o.b?"<w:b/><w:bCs/>":"")+(o.ls?'<w:spacing w:val="'+o.ls+'"/>':"")+'<w:sz w:val="'+sz+'"/><w:szCs w:val="'+sz+'"/>'+(o.falta?'<w:highlight w:val="yellow"/>':"");}
+function runs(t,o){
+  o=o||{};var out="";
+  t.split(/(\*\*.+?\*\*|⟦.+?⟧)/g).forEach(function(p){
     if(!p)return;
-    var rpr=base,txt=p;
-    if(/^\*\*.+\*\*$/.test(p)){txt=p.slice(2,-2);rpr+="<w:b/>";}
-    else if(p.charAt(0)===A){txt="["+p.slice(1,-1)+"]";rpr+='<w:highlight w:val="yellow"/>';}
-    out+="<w:r>"+(rpr?"<w:rPr>"+rpr+"</w:rPr>":"")+'<w:t xml:space="preserve">'+xesc(txt)+"</w:t></w:r>";
+    var txt=p,r={b:o.b,sz:o.sz,ls:o.ls};
+    if(/^\*\*.+\*\*$/.test(p)){txt=p.slice(2,-2);r.b=true;}
+    else if(p.charAt(0)===A){txt="["+p.slice(1,-1)+"]";r.falta=true;}
+    out+="<w:r><w:rPr>"+rpr(r)+'</w:rPr><w:t xml:space="preserve">'+xesc(txt)+"</w:t></w:r>";
   });
   return out;
 }
 function par(t,o){
   o=o||{};
-  /* ordem exigida pelo Word: keepNext, pageBreakBefore, spacing, ind, jc */
-  var ppr=(o.junto?"<w:keepNext/>":"")+(o.quebra?"<w:pageBreakBefore/>":"")+(o.antes!=null||o.depois!=null?'<w:spacing w:before="'+(o.antes||0)+'" w:after="'+(o.depois!=null?o.depois:120)+'"/>':"")+(o.ind?'<w:ind w:left="'+o.ind+'" w:hanging="220"/>':"")+(o.jc?'<w:jc w:val="'+o.jc+'"/>':"");
-  return "<w:p>"+(ppr?"<w:pPr>"+ppr+"</w:pPr>":"")+runs(t,o.rpr||"")+"</w:p>";
+  /* ordem exigida pelo Word no pPr: keepNext, pageBreakBefore, widowControl, pBdr, spacing, ind, jc */
+  var ppr=(o.junto?"<w:keepNext/>":"")+(o.quebra?"<w:pageBreakBefore/>":"")+"<w:widowControl/>"+
+    (o.borda?'<w:pBdr><w:top w:val="single" w:sz="6" w:space="6" w:color="1D1B19"/></w:pBdr>':"")+
+    '<w:spacing w:before="'+(o.antes||0)+'" w:after="'+(o.depois!=null?o.depois:120)+'" w:line="'+(o.linha||DLINHA)+'" w:lineRule="auto"/>'+
+    (o.ind?'<w:ind w:left="'+o.ind+'" w:hanging="'+o.ind+'"/>':"")+'<w:jc w:val="'+(o.jc||"left")+'"/>';
+  return "<w:p><w:pPr>"+ppr+"</w:pPr>"+(o.pre||"")+(o.img||runs(t,o))+"</w:p>";
 }
-function documentoXML(ct){
+/* marca da tela (símbolo vazado + SHYLTON MAVIE em Josefin Sans 335, espaçamento .04em) desenhada em PNG, 4x para imprimir nítido */
+function marcaPNG(){
+  var k=4,fs=24*k,txt=NOME.toUpperCase(),fonte='335 '+fs+'px "Josefin Sans", Arial, sans-serif';
+  var pronta=document.fonts&&document.fonts.load?document.fonts.load('335 '+fs+'px "Josefin Sans"',txt).catch(function(){}):Promise.resolve();
+  return pronta.then(function(){
+    var c=document.createElement("canvas"),g=c.getContext("2d");
+    function letra(){g.font=fonte;if(!/josefin/i.test(g.font))g.font=fonte.replace("335","300");}
+    letra();
+    var ls=.04*fs,larg=[],tw=0;
+    txt.split("").forEach(function(l){var w=g.measureText(l).width;larg.push(w);tw+=w+ls;});tw-=ls;
+    var cap=g.measureText("H").actualBoundingBoxAscent||.75*fs,sh=.9*fs,sw=sh*96/148,gap=.5*fs;
+    c.width=Math.ceil(sw+gap+tw)+2;c.height=Math.ceil(sh)+2;
+    g=c.getContext("2d");g.fillStyle="#111111";
+    g.save();g.translate(1,1);g.scale(sh/148,sh/148);
+    g.fill(new Path2D("M48 0a36 36 0 1 1 0 72a36 36 0 1 1 0-72zM48 8a28 28 0 1 0 0 56a28 28 0 1 0 0-56z"),"evenodd");
+    g.fillRect(0,80,96,8);g.fillRect(20,84,8,64);g.fillRect(68,84,8,64);g.restore();
+    letra();g.textBaseline="alphabetic";
+    var x=1+sw+gap,y=1+sh/2+cap/2;
+    txt.split("").forEach(function(l,i){g.fillText(l,x,y);x+=larg[i]+ls;});
+    var bin=atob(c.toDataURL("image/png").split(",")[1]),u=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+    return {png:u,w:c.width/k,h:c.height/k};
+  }).catch(function(){return null;});
+}
+function imgMarca(m){
+  var cx=Math.round(m.w*9525),cy=Math.round(m.h*9525),ext='cx="'+cx+'" cy="'+cy+'"';
+  return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent '+ext+'/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="1" name="Marca" descr="'+xesc(NOME)+'"/>'+
+    '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="'+A_NS+'" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="'+A_NS+'"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'+
+    '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="1" name="marca.png" descr="'+xesc(NOME)+'"/><pic:cNvPicPr><a:picLocks noChangeAspect="1"/></pic:cNvPicPr></pic:nvPicPr>'+
+    '<pic:blipFill><a:blip r:embed="rIdMarca"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext '+ext+'/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>'+
+    '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+}
+function celAssin(rot,nome,doc){
+  return '<w:tc><w:tcPr><w:tcW w:w="4535" w:type="dxa"/></w:tcPr>'+par("**"+rot+"**",{jc:"center",depois:0,junto:true})+
+    par(nome,{jc:"center",antes:900,depois:0,borda:true,junto:true})+par(doc,{jc:"center",depois:0})+"</w:tc>";
+}
+var MARCADOR='<w:r><w:rPr>'+rpr({})+'</w:rPr><w:t>•</w:t><w:tab/></w:r>';
+function documentoXML(ct,marca){
   var ctx=contexto(ct),corpo="";
-  MODELO.forEach(function(b){
+  MODELO.forEach(function(b,i){
     var t=preencher(b[1],ctx);
-    if(b[0]==="marca")corpo+=par(t,{rpr:'<w:rFonts w:ascii="Josefin Sans" w:hAnsi="Josefin Sans"/><w:spacing w:val="30"/><w:sz w:val="36"/>',depois:360});
-    else if(b[0]==="titulo")corpo+=par("**"+t+"**",{jc:"center",depois:60});
-    else if(b[0]==="centro")corpo+=par(t,{jc:"center",antes:120,depois:240});
-    else if(b[0]==="h")corpo+=par("**"+t+"**",{antes:/^ANEXO/.test(t)?360:240,depois:80,junto:true,quebra:/^ANEXO I —/.test(t)});
-    else if(b[0]==="anexo1")anexoI(ct).forEach(function(a){
-      if(a[0]==="sub")corpo+=par("**"+a[1]+"**",{antes:200,depois:60,junto:true});
-      else if(a[0]==="li")corpo+=par("•  "+a[1],{ind:440,depois:60});
+    /* o fecho ("E, por estarem de acordo…") e a data vão para a página das assinaturas, nunca separados delas */
+    if((MODELO[i+1]||[])[0]==="assin"||(MODELO[i+2]||[])[0]==="assin")corpo+=par(t,{jc:b[0]==="centro"?"center":"both",antes:b[0]==="centro"?120:0,depois:b[0]==="centro"?360:120,junto:true});
+    else if(b[0]==="marca")corpo+=marca?par("",{img:imgMarca(marca),linha:240,depois:330}):par(NOME.toUpperCase(),{sz:36,ls:16,linha:240,depois:330});
+    else if(b[0]==="titulo")corpo+=par("**"+t+"**",{jc:"center",sz:22,ls:6,depois:60});
+    else if(b[0]==="centro")corpo+=par(t,{jc:"center",antes:120,depois:280});
+    else if(b[0]==="h")corpo+=par("**"+t+"**",{ls:6,antes:/^ANEXO/.test(t)?360:280,depois:100,junto:true,quebra:/^ANEXO I —/.test(t)});
+    else if(b[0]==="anexo1"){var an=anexoI(ct);an.forEach(function(a,i){
+      if(a[0]==="sub")corpo+=par("**"+a[1]+"**",{antes:210,depois:60,junto:true});
+      else if(a[0]==="li")corpo+=par(a[1],{ind:300,pre:MARCADOR,depois:an[i+1]&&an[i+1][0]==="li"?60:180});
       else corpo+=par(a[1],{jc:"both"});
-    });
-    else if(b[0]==="assin"){
-      [["CONTRATANTE",ctx.nomeCli,ctx.docCli],["CONTRATADO",ctx.nomeK,ctx.cpfK]].forEach(function(s){
-        corpo+=par("**"+s[0]+":**",{antes:480,depois:600,junto:true})+par("______________________________________",{depois:0,junto:true})+par(s[1],{depois:0,junto:true})+par(s[2],{depois:120});
-      });
-    }
+    });}
+    else if(b[0]==="assin")corpo+='<w:tbl><w:tblPr><w:tblW w:w="9070" w:type="dxa"/><w:jc w:val="center"/><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="280" w:type="dxa"/><w:right w:w="280" w:type="dxa"/></w:tblCellMar></w:tblPr>'+
+      '<w:tblGrid><w:gridCol w:w="4535"/><w:gridCol w:w="4535"/></w:tblGrid><w:tr><w:trPr><w:cantSplit/></w:trPr>'+
+      celAssin("CONTRATANTE",ctx.nomeCli,ctx.docCli)+celAssin("CONTRATADO",ctx.nomeK,ctx.cpfK)+"</w:tr></w:tbl>"+par("",{depois:0});
     else corpo+=par(t,{jc:"both"});
   });
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>'+corpo+
+  return XML_CAB+'<w:document '+W_NS+' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>'+corpo+
     '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1418" w:right="1418" w:bottom="1418" w:left="1418" w:header="709" w:footer="709" w:gutter="0"/></w:sectPr></w:body></w:document>';
 }
-var ESTILOS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:eastAsia="Arial" w:cs="Arial"/><w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="pt-BR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="300" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style></w:styles>';
-var TIPOS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>';
-var RELS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
-var DOCRELS='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+var PP_PADRAO='<w:widowControl/><w:spacing w:before="0" w:after="120" w:line="'+DLINHA+'" w:lineRule="auto"/>',RP_PADRAO=DFONTE+'<w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="pt-BR" w:eastAsia="pt-BR" w:bidi="ar-SA"/>';
+var ESTILOS=XML_CAB+'<w:styles '+W_NS+'><w:docDefaults><w:rPrDefault><w:rPr>'+RP_PADRAO+'</w:rPr></w:rPrDefault><w:pPrDefault><w:pPr>'+PP_PADRAO+'</w:pPr></w:pPrDefault></w:docDefaults>'+
+  '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/><w:pPr>'+PP_PADRAO+'</w:pPr><w:rPr>'+RP_PADRAO+'</w:rPr></w:style>'+
+  '<w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/><w:unhideWhenUsed/></w:style>'+
+  '<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style></w:styles>';
+/* Word atual (modo 15) + hifenização automática (a língua pt-BR está no estilo) */
+var CONFIG=XML_CAB+'<w:settings '+W_NS+'><w:zoom w:percent="100"/><w:defaultTabStop w:val="709"/><w:autoHyphenation/><w:consecutiveHyphenLimit w:val="2"/><w:hyphenationZone w:val="357"/><w:doNotHyphenateCaps/><w:characterSpacingControl w:val="doNotCompress"/>'+
+  '<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/><w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="enableOpenTypeFeatures" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="doNotFlipMirrorIndents" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/></w:compat>'+
+  '<w:themeFontLang w:val="pt-BR"/><w:decimalSymbol w:val=","/><w:listSeparator w:val=";"/></w:settings>';
+var FONTES_DOC=XML_CAB+'<w:fonts '+W_NS+'><w:font w:name="Arial"><w:panose1 w:val="020B0604020202020204"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font></w:fonts>';
+var CT_W="application/vnd.openxmlformats-officedocument.wordprocessingml.";
+var TIPOS=XML_CAB+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/>'+
+  '<Override PartName="/word/document.xml" ContentType="'+CT_W+'document.main+xml"/><Override PartName="/word/styles.xml" ContentType="'+CT_W+'styles+xml"/><Override PartName="/word/settings.xml" ContentType="'+CT_W+'settings+xml"/><Override PartName="/word/fontTable.xml" ContentType="'+CT_W+'fontTable+xml"/></Types>';
+var RELS=XML_CAB+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
+function docRels(img){
+  var R="http://schemas.openxmlformats.org/officeDocument/2006/relationships/";
+  return XML_CAB+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="'+R+'styles" Target="styles.xml"/><Relationship Id="rId2" Type="'+R+'settings" Target="settings.xml"/><Relationship Id="rId3" Type="'+R+'fontTable" Target="fontTable.xml"/>'+
+    (img?'<Relationship Id="rIdMarca" Type="'+R+'image" Target="media/marca.png"/>':"")+"</Relationships>";
+}
 var CRC=(function(){var t=new Uint32Array(256);for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
 function crc32(u){var c=0xFFFFFFFF;for(var i=0;i<u.length;i++)c=CRC[(c^u[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
 function zip(arqs){
   var enc=new TextEncoder(),partes=[],central=[],off=0,d=new Date();
   var tm=(d.getHours()<<11)|(d.getMinutes()<<5)|Math.floor(d.getSeconds()/2),dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();
   arqs.forEach(function(a){
-    var nome=enc.encode(a[0]),dados=enc.encode(a[1]),crc=crc32(dados);
+    var nome=enc.encode(a[0]),dados=typeof a[1]==="string"?enc.encode(a[1]):a[1],crc=crc32(dados);
     var l=new DataView(new ArrayBuffer(30));
     l.setUint32(0,0x04034b50,true);l.setUint16(4,20,true);l.setUint16(6,0x0800,true);l.setUint16(8,0,true);l.setUint16(10,tm,true);l.setUint16(12,dt,true);
     l.setUint32(14,crc,true);l.setUint32(18,dados.length,true);l.setUint32(22,dados.length,true);l.setUint16(26,nome.length,true);l.setUint16(28,0,true);
@@ -588,10 +653,14 @@ function zip(arqs){
   e.setUint32(0,0x06054b50,true);e.setUint16(4,0,true);e.setUint16(6,0,true);e.setUint16(8,arqs.length,true);e.setUint16(10,arqs.length,true);e.setUint32(12,tam,true);e.setUint32(16,off,true);e.setUint16(20,0,true);
   return new Blob(partes.concat(central,[new Uint8Array(e.buffer)]),{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
 }
+function partesDocx(ct,m){
+  var a=[["[Content_Types].xml",TIPOS],["_rels/.rels",RELS],["word/document.xml",documentoXML(ct,m)],["word/_rels/document.xml.rels",docRels(!!m)],["word/styles.xml",ESTILOS],["word/settings.xml",CONFIG],["word/fontTable.xml",FONTES_DOC]];
+  if(m)a.push(["word/media/marca.png",m.png]);
+  return a;
+}
 function contratoDocx(ct){
-  var blob=zip([["[Content_Types].xml",TIPOS],["_rels/.rels",RELS],["word/document.xml",documentoXML(ct)],["word/_rels/document.xml.rels",DOCRELS],["word/styles.xml",ESTILOS]]);
   var cli=ct.clienteId?S.Store.get("clientes",ct.clienteId):null;
-  return S.salvarArquivo("Contrato "+(ct.num||"")+" - "+((cli&&cli.nome)||"cliente")+".docx",blob);
+  return marcaPNG().then(function(m){return S.salvarArquivo("Contrato "+(ct.num||"")+" - "+((cli&&cli.nome)||"cliente")+".docx",zip(partesDocx(ct,m)));});
 }
 
 /* ================= REVISÃO JURÍDICA DO CONTRATO BASE ================= */
@@ -622,5 +691,5 @@ function revisaoHTML(){
 
 Object.assign(S,{slidesHTML:slidesHTML,propostaPDF:propostaPDF,imprimirProposta:imprimirProposta,
   contratoHTML:contratoHTML,contratoDocx:contratoDocx,faltando:faltando,enderecoCli:enderecoCli,faltaCliente:faltaCliente,revisaoHTML:revisaoHTML,REVISAO:REVISAO,nomeArq:nomeArq,
-  _docx:{documentoXML:documentoXML,zip:zip,TIPOS:TIPOS,RELS:RELS,DOCRELS:DOCRELS,ESTILOS:ESTILOS}});
+  _docx:{partes:partesDocx,marcaPNG:marcaPNG,zip:zip}});
 })();

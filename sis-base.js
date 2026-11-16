@@ -305,13 +305,14 @@ function urlSupa(caminho){
    Site publicado: a conta define o papel (Editor = adm, Contributor = colaborador; quem só visualiza não entra)
    e a senha de cada pessoa fica em acessos/<id>, que só ela e o adm leem.
    Fora do site publicado (teste local): modo demonstração, tudo guardado só no navegador. */
-var Sessao={papel:null,conta:null,nome:"",membroId:"",userId:"",email:"",previa:false,fora:false,supa:false,recuperar:false,aviso:""};
+var Sessao={papel:null,conta:null,nome:"",membroId:"",userId:"",email:"",h:"",previa:false,fora:false,supa:false,recuperar:false,aviso:""}; /* h = sha-256 do e-mail: acha o colaborador em time/lista */
 var SS="sm-sessao",prep=null;
 function lerSessao(){try{return JSON.parse(sessionStorage.getItem(SS)||"null");}catch(e){return null;}}
 function entrarSupa(user){
   Sessao.userId=user.id;Sessao.email=String(user.email||"").toLowerCase();
   Sessao.nome=(user.user_metadata&&user.user_metadata.nome)||"";
-  return SB.rpc("meu_papel").then(function(r){
+  return Promise.all([SB.rpc("meu_papel"),hashEmail(Sessao.email).catch(function(){return "";})]).then(function(rr){
+    var r=rr[0];Sessao.h=rr[1]||"";
     var papel=r&&!r.error&&(r.data==="adm"||r.data==="colab"||r.data==="cliente")?r.data:null; /* cliente: área do cliente (2026-11-15) */
     Sessao.conta=papel;
     if(papel)entrar(papel);
@@ -397,7 +398,7 @@ function sincCliente(id,antes,depois){
   });
 }
 function sair(){
-  if(Sessao.supa&&SB){SB.auth.signOut();Sessao.conta=null;Sessao.userId="";Sessao.email="";Sessao.nome="";Sessao.recuperar=false;}
+  if(Sessao.supa&&SB){SB.auth.signOut();Sessao.conta=null;Sessao.userId="";Sessao.email="";Sessao.h="";Sessao.nome="";Sessao.recuperar=false;}
   Sessao.papel=null;Sessao.membroId="";Sessao.previa=false;try{sessionStorage.removeItem(SS);}catch(e){}
   if(Store.modo==="db"){Store.ouvintes.forEach(function(u){try{u();}catch(e){}});Store.ouvintes=[];Store.assinadas="";Store.dados={};}
   location.hash="#adm";render();
@@ -806,6 +807,11 @@ function campo(c,v){
   var id="c"+(++seq),req=c.req?" required":"",dis=c.ro?" readonly":"";
   if(v==null)v=c.pad!=null?c.pad:"";
   if(c.t==="check")return '<label class="chk'+(c.full?" f--full":"")+'" for="'+id+'"><input type="checkbox" id="'+id+'" data-k="'+c.k+'"'+(v?" checked":"")+'> '+esc(c.r)+'</label>';
+  /* Várias opções marcáveis (ex.: responsáveis da tarefa); o valor é a lista dos marcados */
+  if(c.t==="multi"){var sel=Array.isArray(v)?v.map(String):[];
+    return '<div class="f f--full f-multi" role="group" aria-labelledby="'+id+'" data-k="'+c.k+'" data-multi="1"><span id="'+id+'">'+esc(c.r)+(c.req?" *":"")+'</span><span class="f-multi__op">'+
+      (c.o||[]).map(function(o){var a=Array.isArray(o)?o:[o,o],i2="c"+(++seq);return '<label class="chk" for="'+i2+'"><input type="checkbox" id="'+i2+'" value="'+esc(a[0])+'"'+(sel.indexOf(String(a[0]))>=0?" checked":"")+'> '+esc(a[1])+'</label>';}).join("")+
+      '</span>'+(c.ajuda?'<small>'+esc(c.ajuda)+'</small>':'')+'</div>';}
   var inp;
   if(c.t==="area")inp='<textarea id="'+id+'" data-k="'+c.k+'"'+req+dis+' placeholder="'+esc(c.ph||"")+'"'+(c.alt?' style="min-height:'+c.alt+'px"':'')+'>'+esc(v)+'</textarea>';
   else if(c.t==="select"){
@@ -826,6 +832,7 @@ function campos(lista,dados){return lista.map(function(c){return campo(c,getPath
 function lerCampos(raiz){
   var o={};
   $$("[data-k]",raiz).forEach(function(e){
+    if(e.hasAttribute("data-multi")){setPath(o,e.getAttribute("data-k"),$$("input:checked",e).map(function(x){return x.value;}));return;}
     var v=e.type==="checkbox"?e.checked:String(e.value).trim();
     if(e.getAttribute("data-num"))v=v===""?"":num(v);
     setPath(o,e.getAttribute("data-k"),v);
@@ -1341,7 +1348,7 @@ Object.assign(SIS,{
   dataBR:dataBR,dataExtenso:dataExtenso,diasEntre:diasEntre,somaDias:somaDias,isoLocal:isoLocal,soDig:soDig,normal:normal,primeiroNome:primeiroNome,
   waLink:waLink,clone:clone,setPath:setPath,getPath:getPath,debounce:debounce,extenso:extenso,toast:toast,copiar:copiar,usar:usar,
   FINALIDADES:FINALIDADES,FINALIDADE_CAPS:FINALIDADE_CAPS,ST:ST,tag:tag,opcoes:opcoes,PADRAO:PADRAO,cfg:cfg,calcular:calcular,
-  Store:Store,proxNum:proxNum,Sessao:Sessao,ehAdm:ehAdm,preparar:preparar,sincAcesso:sincAcesso,membroLiberado:membroLiberado,
+  Store:Store,proxNum:proxNum,Sessao:Sessao,ehAdm:ehAdm,preparar:preparar,sincAcesso:sincAcesso,membroLiberado:membroLiberado,hashEmail:hashEmail,
   sincCliente:sincCliente,clienteLiberado:clienteLiberado,areaClienteDb:areaClienteDb,
   trata:trata,mostrar:mostrar,esconder:esconder,render:render,
   campo:campo,campos:campos,lerCampos:lerCampos,validar:validar,modal:modal,modalForm:modalForm,confirmar:confirmar,fecharModal:fecharModal,erroGravar:erroGravar,
