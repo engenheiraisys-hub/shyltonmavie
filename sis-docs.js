@@ -102,7 +102,8 @@ SRI[JSPDF]="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIW
 SRI[H2C]="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H";
 var PESOS_PDF={"lexend":[200,300,400,500,600],"lexend exa":[300,600]}; /* os pesos que a página carrega (sis-base.js) */
 var FONTES_B64={},JOSEFIN=null,ctxMede=null;
-function novoPDF(){return new window.jspdf.jsPDF({orientation:"landscape",unit:"px",format:[1280,720],hotfixes:["px_scaling"],compress:true});}
+var SLIDE={w:1280,h:720,o:"landscape"},A4={w:794,h:1123,o:"portrait"}; /* A4 a 96 px por polegada */
+function novoPDF(f){f=f||SLIDE;return new window.jspdf.jsPDF({orientation:f.o,unit:"px",format:[f.w,f.h],hotfixes:["px_scaling"],compress:true});}
 function pesoCSS(lista,w){ /* a regra do CSS para escolher o peso quando o pedido não está carregado (ex.: Lexend Exa 400 cai no 300) */
   if(lista.indexOf(w)>=0)return w;
   var menos=lista.filter(function(x){return x<w;}).sort(function(a,b){return b-a;}),mais=lista.filter(function(x){return x>w;}).sort(function(a,b){return a-b;});
@@ -138,7 +139,8 @@ function lerSlide(sl){
     if(el.closest("svg"))return;
     var cs=getComputedStyle(el);if(cs.visibility==="hidden")return;
     var b=el.getBoundingClientRect();if(!b.width||!b.height)return;
-    var c=corRGB(cs.backgroundColor);if(c[3]>0)d.fundos.push(Object.assign(caixa(b),{c:c}));
+    var c=corRGB(cs.backgroundColor);
+    if(c[3]>0)(cs.display==="inline"?[].slice.call(el.getClientRects()):[b]).forEach(function(r){d.fundos.push(Object.assign(caixa(r),{c:c}));}); /* destaque que quebra de linha: um fundo por linha */
     var u=/url\(["']?([^"')]+)["']?\)/.exec(cs.backgroundImage);
     if(u)d.fotos.push(Object.assign(caixa(b),{src:u[1],px:cs.backgroundPositionX,py:cs.backgroundPositionY}));
     ["Top","Right","Bottom","Left"].forEach(function(l){
@@ -273,7 +275,8 @@ function desenharSlide(pdf,d,k){
     pdf.text(t.t,t.x,t.y,{charSpace:t.ls});
   });
 }
-function pdfVetor(sls,titulo){
+function pdfVetor(sls,titulo,fmt){
+  fmt=fmt||SLIDE;
   var dados=sls.map(lerSlide),faces={},contorno=false,fotos=[];
   dados.forEach(function(d){d.textos.forEach(function(t){if(t.face)faces[t.face]=1;else contorno=true;});fotos=fotos.concat(d.fotos);});
   return Promise.all([
@@ -283,21 +286,22 @@ function pdfVetor(sls,titulo){
     contorno&&!JOSEFIN?fetch("fontes/josefin-335.json").then(function(r){if(!r.ok)throw new Error("josefin-335");return r.json();}).then(function(j){JOSEFIN=j;}):null,
     Promise.all(fotos.map(fotoPDF))
   ]).then(function(){
-    var pdf=novoPDF(),k=pdf.internal.scaleFactor;
+    var pdf=novoPDF(fmt),k=pdf.internal.scaleFactor;
     pdf.setProperties({title:titulo,author:"Shylton Mavie",creator:"shyltonmavie.com"});
     Object.keys(faces).forEach(function(n){pdf.addFileToVFS(n+".ttf",FONTES_B64[n]);pdf.addFont(n+".ttf",n,"normal");});
-    dados.forEach(function(d,i){if(i)pdf.addPage([1280,720],"landscape");desenharSlide(pdf,d,k);});
+    dados.forEach(function(d,i){if(i)pdf.addPage([fmt.w,fmt.h],fmt.o);desenharSlide(pdf,d,k);});
     return pdf.output("blob");
   });
 }
-function pdfImagem(sls){ /* plano B: cada slide como imagem, em alta (×3) */
+function pdfImagem(sls,fmt){ /* plano B: cada página como imagem, em alta (×3) */
+  fmt=fmt||SLIDE;
   return carregar(H2C).then(function(){
-    var pdf=novoPDF(),i=0;
+    var pdf=novoPDF(fmt),i=0;
     function prox(){
       if(i>=sls.length)return Promise.resolve();
       return window.html2canvas(sls[i],{scale:3,backgroundColor:"#ffffff",logging:false,useCORS:true}).then(function(cv){
-        if(i)pdf.addPage([1280,720],"landscape");
-        pdf.addImage(cv.toDataURL("image/jpeg",0.95),"JPEG",0,0,1280,720);i++;return prox();
+        if(i)pdf.addPage([fmt.w,fmt.h],fmt.o);
+        pdf.addImage(cv.toDataURL("image/jpeg",0.95),"JPEG",0,0,fmt.w,fmt.h);i++;return prox();
       });
     }
     return prox().then(function(){return pdf.output("blob");});
@@ -595,7 +599,7 @@ function documentoXML(ct,marca){
     var t=preencher(b[1],ctx);
     /* o fecho ("E, por estarem de acordo…") e a data vão para a página das assinaturas, nunca separados delas */
     if((MODELO[i+1]||[])[0]==="assin"||(MODELO[i+2]||[])[0]==="assin")corpo+=par(t,{jc:b[0]==="centro"?"center":"both",antes:b[0]==="centro"?120:0,depois:b[0]==="centro"?360:120,junto:true});
-    else if(b[0]==="marca")corpo+=marca?par("",{img:imgMarca(marca),linha:240,depois:330}):par(NOME.toUpperCase(),{sz:36,ls:16,linha:240,depois:330});
+    else if(b[0]==="marca")corpo+=marca?par("",{img:imgMarca(marca),jc:"center",linha:240,depois:330}):par(NOME.toUpperCase(),{jc:"center",sz:36,ls:16,linha:240,depois:330}); /* centrada, como na tela */
     else if(b[0]==="titulo")corpo+=par("**"+t+"**",{jc:"center",sz:22,ls:6,depois:60});
     else if(b[0]==="centro")corpo+=par(t,{jc:"center",antes:120,depois:280});
     else if(b[0]==="h")corpo+=par("**"+t+"**",{ls:6,antes:/^ANEXO/.test(t)?360:280,depois:100,junto:true,quebra:/^ANEXO I —/.test(t)});
@@ -658,9 +662,49 @@ function partesDocx(ct,m){
   if(m)a.push(["word/media/marca.png",m.png]);
   return a;
 }
-function contratoDocx(ct){
+function nomeContrato(ct,nomeCli){
   var cli=ct.clienteId?S.Store.get("clientes",ct.clienteId):null;
-  return marcaPNG().then(function(m){return S.salvarArquivo("Contrato "+(ct.num||"")+" - "+((cli&&cli.nome)||"cliente")+".docx",zip(partesDocx(ct,m)));});
+  return "Contrato "+(ct.num||"")+" - "+((cli&&cli.nome)||nomeCli||"cliente");
+}
+function contratoDocx(ct){
+  return marcaPNG().then(function(m){return S.salvarArquivo(nomeContrato(ct)+".docx",zip(partesDocx(ct,m)));});
+}
+/* ---------- PDF do contrato (pedido da Isys, 2026-11-16) ----------
+   A4 em vetor, igual à tela: o mesmo caminho do PDF da proposta (lerSlide/desenharSlide), com Lexend embutida,
+   texto palavra por palavra e a marca em contorno. As páginas são montadas aqui, bloco a bloco, sem cortar parágrafo:
+   título de cláusula nunca fica sozinho no pé da página; fecho, data e assinaturas sempre juntos; ANEXO I começa em página nova;
+   número da página no rodapé. Falhou em vetor? Vai em imagem (×3). Falhou de novo? Quem chamou abre a impressão. */
+function paginasContrato(ct,box){
+  var fonte=document.createElement("div");fonte.innerHTML=contratoHTML(ct);
+  var blocos=S.$$(".folha > *",fonte),pags=[],pg;
+  function nova(){pg=document.createElement("article");pg.className="folha folha--pdf";box.appendChild(pg);pags.push(pg);}
+  function cabe(el){return el.getBoundingClientRect().bottom<=pg.getBoundingClientRect().bottom-parseFloat(getComputedStyle(pg).paddingBottom)+.5;}
+  nova();
+  blocos.forEach(function(b){
+    if(b.classList.contains("li")){var m=document.createElement("span");m.className="li__m";m.textContent="•";b.insertBefore(m,b.firstChild);} /* o "•" da tela é ::before, que não é lido */
+    if(b.classList.contains("anexo")&&pg.children.length)nova();
+    pg.appendChild(b);
+    if(cabe(b)||pg.children.length===1)return;
+    var levar=[b],ant,assin=b.classList.contains("assin");
+    while((ant=levar[0].previousElementSibling)&&pg.children.length>levar.length+1&&(ant.tagName==="H2"||ant.classList.contains("sub")||(assin&&levar.length<3)))levar.unshift(ant);
+    nova();levar.forEach(function(x){pg.appendChild(x);});
+  });
+  pags.forEach(function(p,i){var r=document.createElement("span");r.className="folha__pag";r.textContent=(i+1)+" / "+pags.length;p.appendChild(r);});
+  return pags;
+}
+function contratoPDF(ct,nomeCli){
+  var aviso=document.createElement("div");aviso.className="gerando";aviso.textContent="Gerando o PDF do contrato…";
+  var box=document.createElement("div");box.className="ct-render";
+  document.body.appendChild(box);document.body.appendChild(aviso);
+  function fim(){box.remove();aviso.remove();}
+  var nome=nomeContrato(ct,nomeCli),fs=document.fonts;
+  return carregar(JSPDF)
+    .then(function(){return fs?Promise.all(['300 13px "Lexend"','600 13px "Lexend"','335 24px "Josefin Sans"'].map(function(f){return fs.load(f).catch(function(){});})).then(function(){return fs.ready;}):null;})
+    .then(function(){
+      var pags=paginasContrato(ct,box);
+      return pdfVetor(pags,nome,A4).catch(function(e){if(window.console)console.warn("PDF do contrato em vetor falhou; indo em imagem.",e);return pdfImagem(pags,A4);});
+    })
+    .then(function(blob){fim();return S.salvarArquivo(nome+".pdf",blob);},function(e){fim();throw e;});
 }
 
 /* ================= REVISÃO JURÍDICA DO CONTRATO BASE ================= */
@@ -690,6 +734,6 @@ function revisaoHTML(){
 }
 
 Object.assign(S,{slidesHTML:slidesHTML,propostaPDF:propostaPDF,imprimirProposta:imprimirProposta,
-  contratoHTML:contratoHTML,contratoDocx:contratoDocx,faltando:faltando,enderecoCli:enderecoCli,faltaCliente:faltaCliente,revisaoHTML:revisaoHTML,REVISAO:REVISAO,nomeArq:nomeArq,
+  contratoHTML:contratoHTML,contratoDocx:contratoDocx,contratoPDF:contratoPDF,faltando:faltando,enderecoCli:enderecoCli,faltaCliente:faltaCliente,revisaoHTML:revisaoHTML,REVISAO:REVISAO,nomeArq:nomeArq,
   _docx:{partes:partesDocx,marcaPNG:marcaPNG,zip:zip}});
 })();

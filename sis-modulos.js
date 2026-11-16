@@ -416,7 +416,7 @@ M.contrato={render:function(m,id,vista){
     var cli=ed.clienteId?St.get("clientes",ed.clienteId):null,pr=prodDoContrato(ed.id);
     m.innerHTML=cab("Contrato "+ed.num,cli?esc(cli.nome):"Escolha o cliente e complete os dados.",
       '<label class="f" style="min-width:200px">Status'+selectHTML('data-k="status"',S.opcoes("contrato"),ed.status)+'</label>'+
-      '<div class="acoes"><button type="button" class="btn btn--escuro" data-salvar>'+ik("salvar")+'Salvar</button><button type="button" class="btn btn--linha" data-docx>'+ik("baixar")+'Baixar .docx</button>'+(pr?'<a class="lnk" href="#adm/producao/'+esc(pr.id)+'">'+ik("producoes")+'Ver produção</a>':'')+(ed.id?'<button type="button" class="btn btn--linha btn--perigo" data-excluir>'+ik("excluir")+'Excluir</button>':'')+'</div>',
+      '<div class="acoes"><button type="button" class="btn btn--escuro" data-salvar>'+ik("salvar")+'Salvar</button><button type="button" class="btn btn--linha" data-pdf>'+ik("baixar")+'Baixar PDF</button><button type="button" class="btn btn--linha" data-docx>'+ik("baixar")+'Baixar .docx</button>'+(pr?'<a class="lnk" href="#adm/producao/'+esc(pr.id)+'">'+ik("producoes")+'Ver produção</a>':'')+(ed.id?'<button type="button" class="btn btn--linha btn--perigo" data-excluir>'+ik("excluir")+'Excluir</button>':'')+'</div>',
       ["#adm/contratos","Contratos"])+
     '<div class="ed ed--meio"><div class="ed__form" id="ed-form">'+
       '<section class="ed__bloco"><h2>'+ik("equipe")+'Partes</h2><div class="fgrid">'+
@@ -495,8 +495,10 @@ M.contrato={render:function(m,id,vista){
   function gravarFin(l){return l.reduce(function(p,x){var y=Object.assign({},x);delete y.rot;return p.then(function(){return St.salvar("financeiro",null,y);});},Promise.resolve());}
   function ligar(){
     $("[data-salvar]",m).addEventListener("click",function(){salvar().then(function(){var x=$("[data-excluir]",m);if(!x)desenhar();},S.erroGravar);});
-    $("[data-docx]",m).addEventListener("click",function(){var f=S.faltando(ed);if(!f.length){S.contratoDocx(ed);return;}
-      S.confirmar({perigo:false,sobre:"Baixar .docx",ico:"baixar",icoOk:"baixar",titulo:"Ainda faltam "+f.length+" dado(s)",texto:"Eles vão aparecer destacados em amarelo no .docx.",ok:"Baixar mesmo assim"}).then(function(sim){if(sim)S.contratoDocx(ed);});});
+    function baixar(tipo,fazer){var f=S.faltando(ed);if(!f.length){fazer();return;}
+      S.confirmar({perigo:false,sobre:"Baixar "+tipo,ico:"baixar",icoOk:"baixar",titulo:"Ainda faltam "+f.length+" dado(s)",texto:"Eles vão aparecer destacados no "+tipo+".",ok:"Baixar mesmo assim"}).then(function(sim){if(sim)fazer();});}
+    $("[data-docx]",m).addEventListener("click",function(){baixar(".docx",function(){S.contratoDocx(ed);});});
+    $("[data-pdf]",m).addEventListener("click",function(){baixar("PDF",function(){pdfContrato(ed);});});
     var x=$("[data-excluir]",m);if(x)x.addEventListener("click",function(){S.confirmar({titulo:"Excluir o contrato "+ed.num+"?"}).then(function(sim){if(!sim)return;St.excluir("contratos",ed.id).then(function(){location.hash="#adm/contratos";},S.erroGravar);});});
     $("[data-novo-cli]",m).addEventListener("click",function(){S.modalCliente(null,function(id){ed.clienteId=id;desenhar();});});
     $("[data-editar-cli]",m).addEventListener("click",function(){S.modalCliente(ed.clienteId,function(){previa();});});
@@ -632,6 +634,10 @@ function periodoProd(p){
   var f=p.dataFim&&p.dataFim!==p.dataInicio?p.dataFim:"";
   return (f?S.dataBR(p.dataInicio).slice(0,5)+" a "+S.dataBR(f):S.dataBR(p.dataInicio))+(p.hora?" · "+p.hora:"");
 }
+/* PDF do contrato em arquivo (adm e cliente); se o navegador não conseguir gerar, abre a impressão (Salvar como PDF) */
+function pdfContrato(ct,nomeCli){
+  return S.contratoPDF(ct,nomeCli).catch(function(e){if(window.console)console.error(e);S.toast("Não foi possível gerar o PDF aqui. Na janela de impressão, escolha Salvar como PDF.");imprimirContrato(ct);});
+}
 function imprimirContrato(ct){
   var box=document.createElement("div");box.className="ct-print";box.innerHTML=S.contratoHTML(ct);document.body.appendChild(box);
   document.body.classList.add("imprimindo-ct");
@@ -671,7 +677,7 @@ M.minhas={render:function(m,id,vista){
       '<section class="sis-sec cli-sec"><h2>'+ik("contratos")+'Contrato</h2><div class="cli-sec__corpo">'+(ct?
         '<p>Contrato <b>'+esc(ct.num||"")+'</b> '+S.tag("contrato",stCon(ct))+'</p>'+
         '<div class="acoes"><button type="button" class="btn btn--escuro" data-ver-ct aria-expanded="'+verCt+'" aria-controls="cli-folha">'+ik(verCt?"acima":"abaixo")+(verCt?'Fechar o contrato':'Ver o contrato')+'</button>'+
-          '<button type="button" class="btn btn--linha" data-ct-pdf>'+ik("baixar")+'Salvar em PDF</button></div></div>'+ /* sem .docx para o cliente (pedido da Isys, 2026-11-15) */
+          '<button type="button" class="btn btn--linha" data-ct-pdf>'+ik("baixar")+'Baixar o contrato em PDF</button></div></div>'+ /* sem .docx para o cliente (pedido da Isys, 2026-11-15) */
         '<div class="cli-folha" id="cli-folha"'+(verCt?'':' hidden')+'>'+(verCt?S.contratoHTML(ct):'')+'</div>'
         :'<p class="nota">O contrato desta produção ainda não está aqui. Fale com o Shylton.</p></div>')+'</section>'+
       '<section class="sis-sec cli-sec"><h2>'+ik("propostas")+'Proposta</h2><div class="cli-sec__corpo">'+(pr?
@@ -686,7 +692,7 @@ M.minhas={render:function(m,id,vista){
   m.addEventListener("click",function(e){
     var d=dados,p=d&&id?(d.producoes||[]).filter(function(x){return x.id===id;})[0]:null,ct=p?achar(d.contratos,p.dados.contratoId):null;
     if(e.target.closest("[data-ver-ct]")){verCt=!verCt;desenhar();var b=$("[data-ver-ct]",m);if(b)b.focus();return;}
-    if(e.target.closest("[data-ct-pdf]")&&ct){imprimirContrato(ct);return;}
+    if(e.target.closest("[data-ct-pdf]")&&ct){pdfContrato(ct,d.cliente&&d.cliente.nome);return;}
     if(e.target.closest("[data-prop-pdf]")&&ct){var pr=achar(d.propostas,ct.propostaId);if(pr)S.propostaPDF(pr);}
   });
   var pronto=false; /* links dos arquivos chegam depois e redesenham a tela (vista.atualizar) */

@@ -456,7 +456,7 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
    Exceção deliberada ao design system no texto (Lexend, preto puro e vermelho dos créditos), herdada do modelo antigo.
    Marca = a do site: símbolo e nome SHYLTON MAVIE em Josefin Sans (pedido da Isys, 2026-11-09). */
 .folha{--doc-tinta:#1D1B19;background:var(--branco);padding:clamp(20px,4vw,52px);font-family:var(--f-doc);font-weight:300;font-size:12.5px;line-height:1.62;color:var(--doc-tinta);box-shadow:0 0 0 1px var(--linha)}
-.folha .marca{display:flex;align-items:center;gap:.5em;margin-bottom:22px;color:#111111;font-family:var(--f);font-weight:var(--w-nome);font-size:24px;line-height:1} /* igual ao cabeçalho do site, sem risco */
+.folha .marca{display:flex;align-items:center;justify-content:center;gap:.5em;margin:0 0 22px;color:#111111;font-family:var(--f);font-weight:var(--w-nome);font-size:24px;line-height:1} /* igual ao cabeçalho do site, sem risco */
 .folha .marca svg{display:block;height:.9em;width:auto;fill:currentColor;flex-shrink:0}
 .folha .marca span{letter-spacing:var(--ls-tit);text-transform:uppercase;position:relative;top:.125em}
 .folha h1{text-align:center;font-size:13px;font-weight:600;letter-spacing:.03em;margin-bottom:4px}
@@ -542,6 +542,15 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 /* Para gerar o PDF e imprimir */
 .sl-render{position:fixed;left:0;top:0;width:1280px;z-index:1;display:flex;flex-direction:column}
 .sl-render .sl{box-shadow:none}
+/* PDF do contrato: páginas A4 (794 × 1123 px), margens 20 mm × 18 mm, montadas por paginasContrato (sis-docs.js) */
+.ct-render{position:fixed;left:0;top:0;z-index:1;display:flex;flex-direction:column}
+.folha.folha--pdf{position:relative;box-sizing:border-box;width:794px;height:1123px;flex-shrink:0;padding:76px 68px;overflow:hidden;box-shadow:none;font-size:13px}
+.folha--pdf > :first-child{margin-top:0}
+.folha--pdf p{hyphens:manual} /* o hífen que o navegador põe na quebra não existe no texto e não iria para o PDF */
+.folha--pdf .li::before{content:none}
+.folha--pdf .li__m{position:absolute;left:.4em}
+.folha--pdf .anexo{margin-top:0;padding-top:0;border-top:0}
+.folha__pag{position:absolute;right:68px;bottom:40px;font-size:10px;color:#6B6660}
 .gerando{position:fixed;inset:0;z-index:200;background:var(--papel);display:grid;place-items:center;font-size:var(--t-corpo);color:var(--tinta-2)}
 .sl-print{display:none}
 @media print{
