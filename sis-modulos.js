@@ -481,7 +481,7 @@ M.contrato={render:function(m,id,vista){
   function novaProducao(cid){
     var c=ed.campos,cli=St.get("clientes",ed.clienteId),d=Math.max(1,Math.round(num(c.dias)||1));
     var p={titulo:(cli?cli.nome:"Produção")+(c.ambientes?" · "+c.ambientes:""),contratoId:cid,clienteId:ed.clienteId,local:c.enderecoServico||S.enderecoCli(cli),
-      dataInicio:c.dataInicio||"",dataFim:c.dataInicio?S.somaDias(c.dataInicio,d-1):"",hora:"",status:"planejada",equipe:[],parceiros:[],pecas:[],obs:"",criadoEm:S.agoraISO()};
+      dataInicio:c.dataInicio||"",dataFim:c.dataInicio?S.somaDias(c.dataInicio,d-1):"",hora:"",status:"planejada",equipe:[],parceiros:[],pecas:[],checklist:checklistPadrao(),obs:"",criadoEm:S.agoraISO()};
     return St.salvar("producoes",null,p).then(function(pid){return M.producao.sync(pid,p).then(function(){return pid;});});
   }
   function parcelas(cid){
@@ -581,6 +581,35 @@ M.clientes={render:function(m,id,vista){
 }};
 
 /* ================= PRODUÇÕES ================= */
+/* Checklist de conferência (pedido da Isys, 2026-11-15): itens por etapa. O padrão vem de Ajustes
+   (config/geral.checklist, um item por linha; colaborador não lê config e usa o padrão do sistema) e é copiado
+   para cada produção, onde adm e colaborador marcam e incluem itens (tirar, só o adm).
+   Numa produção já salva, marcar/incluir/tirar grava na hora só o checklist, sem mexer no resto da tela. */
+var ETAPAS_CHK=[["antes","Antes da produção"],["montagem","Montagem"],["desmontagem","Desmontagem"]];
+function idChk(){return "k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+/* Orçamento pelo link: chave secreta de 24 caracteres por linha de parceiro da produção */
+function chaveOrc(){var a=new Uint8Array(12);crypto.getRandomValues(a);return Array.prototype.map.call(a,function(b){return ("0"+b.toString(16)).slice(-2);}).join("");}
+/* O registro vem de fora (sem login): só vale o que tem a mesma chave e arquivo no caminho que o site gera, orcamentos/<chave>/<id>.<ext> */
+function orcRecebidos(chave){
+  if(!/^[\w-]{16,40}$/.test(chave||""))return [];
+  var rx=new RegExp("^sb:orcamentos/"+chave+"/[\\w-]{4,64}\\.(pdf|jpg|png|webp)$");
+  return St.list("orcamentos").filter(function(r){return r.chave===chave;}).map(function(r){
+    var a=r.arquivo||{},id=String(a.id||""),arq={nome:String(a.nome||"orçamento").slice(0,120)};
+    if(rx.test(id))arq.id=id;else arq.nota=String(a.nota||"arquivo não recebido").slice(0,60);
+    return {id:r.id,arquivo:arq,empresa:String(r.empresa||"").slice(0,120),obs:String(r.obs||"").slice(0,1000),enviadoEm:String(r.enviadoEm||"")};
+  }).sort(function(a,b){return b.enviadoEm.localeCompare(a.enviadoEm);});
+}
+function checklistPadrao(){
+  var c=S.cfg().checklist||{},l=[];
+  ETAPAS_CHK.forEach(function(e){String(c[e[0]]||"").split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean).forEach(function(txt){l.push({id:idChk(),etapa:e[0],txt:txt.slice(0,200),ok:false});});});
+  return l;
+}
+/* Resumo do modelo recolhido em Ajustes: "Antes da produção: 37 itens · Montagem: 3 itens · Desmontagem: 3 itens" */
+function resumoChk(c){
+  c=c||{};
+  return ETAPAS_CHK.map(function(e){var n=String(c[e[0]]||"").split(/\r?\n/).filter(function(x){return x.trim();}).length;return e[1]+": "+n+(n===1?" item":" itens");}).join(" · ");
+}
+function progChk(p){var l=p.checklist||[];return l.length?l.filter(function(x){return x.ok;}).length+" de "+l.length:"";}
 var fProd={st:"todas",q:""};
 M.producoes={render:function(m,id,vista){
   var adm=S.ehAdm();
@@ -598,6 +627,7 @@ M.producoes={render:function(m,id,vista){
       {r:"Local",v:function(p){return esc(p.local||"—");},cl:"sec"},
       {r:"Datas",v:function(p){return esc(S.dataBR(p.dataInicio)+(p.dataFim&&p.dataFim!==p.dataInicio?" a "+S.dataBR(p.dataFim):""))||"—";}},
       {r:"Parceiros",v:function(p){return String((p.parceiros||[]).length);},cl:"num"},
+      {r:"Conferência",v:function(p){var l=p.checklist||[],f=l.filter(function(x){return x.ok;}).length;return l.length?(f===l.length?'<span class="tag" style="--c:#3E6B48">'+esc(progChk(p))+'</span>':esc(progChk(p))):"—";},cl:"num"},
       adm?{r:"Peças com o cliente",v:function(p){return String(qtdPecas(p.pecas));},cl:"num"}:null,
       adm?{r:"RT",v:function(p){return brl(artTotal(p.pecas));},cl:"num"}:null,
       {r:"Status",v:function(p){return S.tag("producao",p.status);}}
@@ -615,24 +645,76 @@ function qtdPecas(pecas){return (pecas||[]).reduce(function(s,x){return s+qtdPec
    Ao salvar, as peças gravadas pelo adm são mantidas (o banco também as protege) e a RT não é mexida;
    rtRever avisa para o Financeiro ser conferido sozinho quando o adm abrir a produção. */
 M.producao={
-  sync:function(id,p){
-    if(!p||!p.dataInicio||p.status==="cancelada")return St.excluir("agenda","prod-"+id).catch(function(){});
-    var nomes=(p.equipe||[]).map(function(i){var x=St.get("equipe",i);return x?x.nome:"";}).filter(Boolean);
-    if(!nomes.length&&p.equipeNomes)nomes=p.equipeNomes; /* colaborador não lê Equipe */
-    return St.salvar("agenda","prod-"+id,{titulo:"Produção · "+(p.titulo||""),tipo:"producao",data:p.dataInicio,dataFim:p.dataFim||p.dataInicio,hora:p.hora||"",horaFim:"",local:p.local||"",
-      desc:nomes.length?"Equipe: "+nomes.join(", "):"",producaoId:id,auto:true});
+  /* tokP (opcional): acesso ao Google pedido no clique de Salvar/Excluir; sem ele, o Google fica para "Atualizar a agenda do Google" */
+  sync:function(id,p,tokP){
+    var novo=agendaProd(id,p);
+    if(!novo)return excluirAgenda("prod-"+id,tokP).catch(function(){});
+    return gravarAgenda("prod-"+id,St.copia("agenda","prod-"+id),novo,tokP);
   },
   render:function(m,id,vista){
     var ed,adm=S.ehAdm();
     if(!adm&&id==="nova"){location.replace("#adm/producoes");return;}
-    if(carregando(m,vista,adm?["producoes","contratos","clientes","parceiros","equipe","financeiro"]:["producoes","parceiros","time"]))return;
-    if(id==="nova")ed={titulo:"",contratoId:"",clienteId:"",local:"",dataInicio:"",dataFim:"",hora:"",status:"planejada",equipe:[],parceiros:[],pecas:[],obs:"",criadoEm:S.agoraISO()};
+    if(carregando(m,vista,adm?["producoes","contratos","clientes","parceiros","equipe","financeiro","orcamentos"]:["producoes","parceiros","time"]))return;
+    if(id==="nova")ed={titulo:"",contratoId:"",clienteId:"",local:"",dataInicio:"",dataFim:"",hora:"",status:"planejada",equipe:[],parceiros:[],pecas:[],checklist:checklistPadrao(),obs:"",criadoEm:S.agoraISO()};
     else{ed=St.copia("producoes",id);if(!ed){m.innerHTML=cab("Produção não encontrada","",'',["#adm/producoes","Produções"]);return;}}
     vista.vivo=false;
     ed.equipe=ed.equipe||[];ed.parceiros=ed.parceiros||[];ed.pecas=ed.pecas||[];
+    if(!Array.isArray(ed.checklist))ed.checklist=checklistPadrao(); /* produção antiga: ganha o padrão (grava ao marcar ou salvar) */
+    var chkAberto=false; /* checklist começa recolhido (pedido da Isys, 2026-11-15); abre no título */
+    if(gOkAdm())prepararGoogle().catch(function(){}); /* a produção vai direto para a agenda do Shylton ao salvar */
+    function chkHTML(){
+      var l=ed.checklist;
+      var html=ETAPAS_CHK.map(function(e){
+        var its=l.map(function(x,i){return [x,i];}).filter(function(a){return (a[0].etapa||"antes")===e[0];});
+        if(!its.length)return "";
+        return '<div class="conf__etapa"><h3>'+esc(e[1])+'</h3>'+its.map(function(a){var x=a[0],i=a[1],quem=[x.por,x.em?S.dataBR(String(x.em).slice(0,10)):""].filter(Boolean).join(" · ");
+          return '<div class="conf__item'+(x.ok?" feito":"")+'"><label class="chk"><input type="checkbox" data-chk="'+i+'"'+(x.ok?" checked":"")+'><span><span class="conf__txt">'+esc(x.txt)+'</span>'+(x.ok&&quem?'<small>'+esc(quem)+'</small>':'')+'</span></label>'+
+            (adm?'<button type="button" class="rep__x" data-rem-chk="'+i+'" aria-label="Tirar o item: '+esc(x.txt)+'" title="Tirar o item">'+ik("excluir")+'</button>':'')+'</div>';}).join("")+'</div>';
+      }).join("");
+      return (html||'<p class="nota">Nenhum item. Inclua abaixo.</p>')+
+        '<div class="conf__novo"><label class="f">Etapa'+selectHTML('data-chk-etapa',ETAPAS_CHK,"antes")+'</label><label class="f">Novo item<input type="text" data-chk-txt maxlength="200" placeholder="Ex.: conferir a iluminação"></label><button type="button" class="btn btn--linha" data-add-chk>'+ik("mais")+'Incluir</button></div>';
+    }
+    function progTxt(){var t=ed.checklist.length,f=ed.checklist.filter(function(x){return x.ok;}).length;return t?f+" de "+t+" conferidos":"";}
+    function gravarChk(){
+      $("#ed-chk",m).innerHTML=chkHTML();$("#chk-prog",m).textContent=progTxt();
+      if(!ed.id)return; /* produção nova: o checklist vai junto ao salvar */
+      var at=St.copia("producoes",ed.id);if(!at)return;delete at.id;at.checklist=S.clone(ed.checklist);
+      St.salvar("producoes",ed.id,at).catch(S.erroGravar);
+    }
     function conOpts(){return [["","— escolha um contrato assinado —"]].concat(St.list("contratos").filter(function(c){return c.status==="assinado"||c.status==="concluido"||c.id===ed.contratoId;}).map(function(c){return [c.id,c.num+" · "+(nomeCliente(c.clienteId)||"sem cliente")];}));}
     function parcHTML(){
-      return ed.parceiros.map(function(x,i){return '<div class="rep__lin" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto" data-pi="'+i+'"><label class="f">Parceiro'+selectHTML('data-pk="parceiroId"',opcoesParceiros(),x.parceiroId)+'</label><label class="f">O que forneceu<input type="text" data-pk="papel" value="'+esc(x.papel)+'" placeholder="Ex.: tapetes e almofadas"></label><button type="button" class="rep__x" data-rem-p="'+i+'">'+ik("excluir")+'Remover</button></div>';}).join("")||'<p class="nota">Nenhum parceiro nesta produção.</p>';
+      return ed.parceiros.map(function(x,i){return '<div class="rep__lin" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto" data-pi="'+i+'"><label class="f">Parceiro'+selectHTML('data-pk="parceiroId"',opcoesParceiros(),x.parceiroId)+'</label><label class="f">O que forneceu<input type="text" data-pk="papel" value="'+esc(x.papel)+'" placeholder="Ex.: tapetes e almofadas"></label><button type="button" class="rep__x" data-rem-p="'+i+'">'+ik("excluir")+'Remover</button>'+orcHTML(x,i)+'</div>';}).join("")||'<p class="nota">Nenhum parceiro nesta produção.</p>';
+    }
+    /* Orçamento de cada parceiro (2026-11-15): o adm anexa (orcamento) ou o parceiro envia pelo link da linha (chave → coleção "orcamentos").
+       Só o adm lê a pasta de arquivos e a coleção "orcamentos"; o colaborador vê só o nome do anexado. */
+    function arqHTML(o,u,extra){
+      return '<span class="orc__arq">'+ik("propostas")+'<span>'+(u?'<a class="lnk" href="'+u+'" target="_blank" rel="noopener">'+esc(o.nome)+' ↗</a>':esc(o.nome)+(o.nota?' <small class="nota">· '+esc(o.nota)+'</small>':''))+(extra||'')+'</span></span>';
+    }
+    function orcHTML(x,i){
+      var o=x.orcamento,ver=o?arqHTML(o,esc(S.urlArquivo(o))):"";
+      if(!adm)return '<div class="orc">'+(o?ver:'<span class="nota">Sem orçamento anexado.</span>')+'</div>';
+      var rec=orcRecebidos(x.chave).map(function(r){
+        return '<div class="orc__rec">'+arqHTML(r.arquivo,esc(S.urlArquivo(r.arquivo)),' <small class="nota">· enviado pelo link'+(r.empresa?' por '+esc(r.empresa):'')+' em '+esc(S.dataBR(String(r.enviadoEm||"").slice(0,10)))+'</small>')+
+          '<button type="button" class="lnk" data-rem-rec="'+esc(r.id)+'">'+ik("excluir")+'Tirar</button>'+(r.obs?'<p class="nota">'+esc(r.obs)+'</p>':'')+'</div>';
+      }).join("");
+      var p=x.parceiroId?St.get("parceiros",x.parceiroId):null,tel=p&&p.contato,url=x.chave?linkOrc(x):"";
+      return '<div class="orc">'+rec+ver+
+        '<label class="lnk orc__env">'+ik("mais")+(o?'Trocar orçamento':'Anexar orçamento')+'<input type="file" accept="application/pdf,image/*" data-orc="'+i+'"></label>'+
+        (o?'<button type="button" class="lnk" data-rem-orc="'+i+'">'+ik("excluir")+'Tirar</button>':'')+
+        '<button type="button" class="lnk" data-link-orc="'+i+'">'+ik("link")+(url?'Copiar link para o parceiro':'Link para o parceiro enviar')+'</button>'+
+        (url&&tel?'<a class="lnk" target="_blank" rel="noopener" href="'+esc(S.waLink(tel,msgOrc(x,url)))+'">'+ik("whats")+'Enviar pelo WhatsApp ↗</a>':'')+'</div>';
+    }
+    function linkOrc(x){
+      var q=[],n=x.parceiroId&&nomeParceiro(x.parceiroId);
+      if(n)q.push("e="+encodeURIComponent(n));if(ed.dataInicio)q.push("d="+ed.dataInicio);
+      return linkCadastro("orcamento/"+x.chave+(q.length?"?"+q.join("&"):""));
+    }
+    function msgOrc(x,url){return "Olá! Aqui é do Shylton Mavie. Pode enviar o orçamento"+(ed.dataInicio?" da produção de "+S.dataBR(ed.dataInicio):"")+" por este link? "+url;}
+    function gravarParc(msg){
+      $("#ed-parc",m).innerHTML=parcHTML();
+      if(!ed.id){S.toast(msg+" Salve a produção.");return;}
+      var at=St.copia("producoes",ed.id);if(!at)return;delete at.id;at.parceiros=S.clone(ed.parceiros);
+      St.salvar("producoes",ed.id,at).then(function(){S.toast(msg);},S.erroGravar);
     }
     function pecasHTML(){
       return ed.pecas.map(function(x,i){return '<div class="rep__lin rep__lin--peca" data-qi="'+i+'"><label class="f f--parc">Parceiro'+selectHTML('data-qk="parceiroId"',opcoesParceiros(),x.parceiroId)+'</label><label class="f">Qtd. de peças<input type="number" min="0" step="1" inputmode="numeric" data-qk="qtd" data-num="1" value="'+esc(x.qtd)+'"></label><label class="f">Valor (R$)<input type="text" inputmode="decimal" data-qk="valor" data-num="1" value="'+(x.valor!==""&&x.valor!=null?S.fmtValor(x.valor):"")+'"></label><label class="f">RT %<input type="text" inputmode="decimal" data-qk="art" data-num="1" value="'+esc(x.art)+'"></label><label class="f">Pagamento da RT<input type="date" data-qk="dataRT" value="'+esc(x.dataRT)+'"></label><button type="button" class="rep__x" data-rem-q="'+i+'">'+ik("excluir")+'Remover</button></div>';}).join("")||'<p class="nota">Nenhuma peça registrada.</p>';
@@ -661,6 +743,8 @@ M.producao={
           {k:"titulo",r:"Título",full:1,req:1},{k:"local",r:"Local",full:1},{k:"dataInicio",r:"Início",t:"date"},{k:"dataFim",r:"Fim",t:"date"},{k:"hora",r:"Horário de chegada",t:"time"},{k:"obs",r:"Observações",t:"area",full:1}],ed)+
           '<p class="nota f--full">Ao salvar, a produção aparece no Calendário, onde a equipe também vê.</p></div></section>'+
         '<section class="ed__bloco"><h2>'+ik("equipe")+'Equipe</h2>'+equipeHTML()+'</section>'+
+        '<section class="ed__bloco"><h2><button type="button" class="recolher" data-recolher-chk aria-expanded="'+chkAberto+'" aria-controls="chk-corpo">'+ik("ok")+'<span>Checklist de conferência<small id="chk-prog">'+esc(progTxt())+'</small></span><span class="recolher__seta">'+ik("abaixo")+'</span></button></h2><div id="chk-corpo"'+(chkAberto?'':' hidden')+'><div class="conf" id="ed-chk">'+chkHTML()+'</div>'+
+          '<p class="nota" style="margin-top:var(--s-12)">'+(ed.id?'Cada item marcado já fica salvo, com quem marcou e a data.':'Os itens marcados ficam salvos ao salvar a produção.')+(adm?' A lista padrão de toda produção nova fica em <a class="lnk" href="#adm/ajustes">Ajustes</a>.':'')+'</p></div></section>'+
       '</div><div class="ed__form">'+
         '<section class="ed__bloco"><h2>'+ik("parceiros")+'Parceiros nesta produção</h2><div class="rep" id="ed-parc">'+parcHTML()+'</div><p style="margin-top:var(--s-12)"><button type="button" class="lnk" data-add-p>'+ik("mais")+'Adicionar parceiro</button>'+(adm?' <a class="lnk" href="#adm/parceiros" style="margin-left:var(--s-12)">'+ik("parceiros")+'Cadastrar parceiro</a>':'')+'</p></section>'+
         (adm?'<section class="ed__bloco"><h2>'+ik("peca")+'Peças que ficaram com o cliente para compra</h2><div class="rep" id="ed-pecas">'+pecasHTML()+'</div><p style="margin-top:var(--s-12)"><button type="button" class="lnk" data-add-q>'+ik("mais")+'Adicionar peça</button></p><div class="totais" id="ed-tot">'+totaisHTML()+'</div></section>':'')+
@@ -670,7 +754,8 @@ M.producao={
     function ligar(){
       $("[data-salvar]",m).addEventListener("click",function(){salvar().catch(function(){});});
       var x=$("[data-excluir]",m);if(x)x.addEventListener("click",function(){S.confirmar({titulo:"Excluir esta produção?",texto:"Ela também sai do calendário, e a RT ainda não recebida sai do financeiro. Essa ação não pode ser desfeita."}).then(function(sim){if(!sim)return;
-        St.excluir("producoes",ed.id).then(function(){return St.excluir("agenda","prod-"+ed.id).catch(function(){});})
+        var tokP=gOkAdm()&&(St.get("agenda","prod-"+ed.id)||{}).gEvento?tokenGoogle():null;if(tokP)tokP.catch(function(){});
+        St.excluir("producoes",ed.id).then(function(){return excluirAgenda("prod-"+ed.id,tokP).catch(function(){});})
           .then(function(){return Promise.all(St.list("financeiro").filter(function(f){return f.producaoId===ed.id&&f.status!=="pago"&&catFin(f.categoria)==="RT / comissão";}).map(function(f){return St.excluir("financeiro",f.id);}));})
           .then(function(){location.hash="#adm/producoes";},S.erroGravar);});});
       $("[data-add-p]",m).addEventListener("click",function(){ed.parceiros.push({parceiroId:"",papel:""});$("#ed-parc",m).innerHTML=parcHTML();});
@@ -678,6 +763,24 @@ M.producao={
     }
     function aoClicar(e){
       var b=e.target.closest("[data-rem-p]");if(b){ed.parceiros.splice(+b.getAttribute("data-rem-p"),1);$("#ed-parc",m).innerHTML=parcHTML();return;}
+      b=e.target.closest("[data-recolher-chk]");if(b){chkAberto=!chkAberto;b.setAttribute("aria-expanded",String(chkAberto));$("#chk-corpo",m).hidden=!chkAberto;return;}
+      b=e.target.closest("[data-rem-orc]");if(b){var po=ed.parceiros[+b.getAttribute("data-rem-orc")];if(po){delete po.orcamento;gravarParc("Orçamento retirado.");}return;}
+      b=e.target.closest("[data-link-orc]");if(b){
+        var pl=ed.parceiros[+b.getAttribute("data-link-orc")];if(!pl)return;
+        if(!ed.id){S.toast("Salve a produção antes de gerar o link.");return;}
+        var nova=!pl.chave;if(nova)pl.chave=chaveOrc();
+        S.copiar(linkOrc(pl)).then(function(){if(nova)gravarParc("Link criado e copiado. Envie ao parceiro.");else S.toast("Link copiado. Envie ao parceiro.");});
+        return;
+      }
+      b=e.target.closest("[data-rem-rec]");if(b){var rid=b.getAttribute("data-rem-rec");
+        S.confirmar({titulo:"Tirar este orçamento enviado pelo link?",texto:"Ele sai da produção. Essa ação não pode ser desfeita."}).then(function(sim){if(!sim)return;St.excluir("orcamentos",rid).then(function(){$("#ed-parc",m).innerHTML=parcHTML();S.toast("Orçamento retirado.");},S.erroGravar);});
+        return;}
+      b=e.target.closest("[data-add-chk]");if(b){
+        var tx=$("[data-chk-txt]",m),et=$("[data-chk-etapa]",m),txt=String(tx.value).trim().slice(0,200);
+        if(!txt){S.toast("Escreva o item antes de incluir.");tx.focus();return;}
+        ed.checklist.push({id:idChk(),etapa:et.value||"antes",txt:txt,ok:false});var etp=et.value;gravarChk();var et2=$("[data-chk-etapa]",m);if(et2)et2.value=etp;var tx2=$("[data-chk-txt]",m);if(tx2)tx2.focus();return;
+      }
+      b=e.target.closest("[data-rem-chk]");if(b){ed.checklist.splice(+b.getAttribute("data-rem-chk"),1);gravarChk();return;}
       b=e.target.closest("[data-rem-q]");if(b){ed.pecas.splice(+b.getAttribute("data-rem-q"),1);$("#ed-pecas",m).innerHTML=pecasHTML();$("#ed-tot",m).innerHTML=totaisHTML();}
     }
     function aoMudar(e){
@@ -686,6 +789,20 @@ M.producao={
         if(e.type!=="change")return;ed.contratoId=t.value;var c=t.value?St.get("contratos",t.value):null;
         if(c){var cc=c.campos||{},cli=St.get("clientes",c.clienteId),d=Math.max(1,Math.round(num(cc.dias)||1));ed.clienteId=c.clienteId;if(!ed.titulo)ed.titulo=(cli?cli.nome:"Produção")+(cc.ambientes?" · "+cc.ambientes:"");
           ed.local=cc.enderecoServico||S.enderecoCli(cli);if(cc.dataInicio){ed.dataInicio=cc.dataInicio;ed.dataFim=S.somaDias(cc.dataInicio,d-1);}desenhar();}
+        return;
+      }
+      if(t.hasAttribute("data-chk")){
+        if(e.type!=="change")return;
+        var it=ed.checklist[+t.getAttribute("data-chk")];if(!it)return;it.ok=t.checked;
+        if(t.checked){it.por=adm?"Shylton":(S.Sessao.nome||"Equipe");it.em=S.agoraISO();}else{delete it.por;delete it.em;}
+        gravarChk();return;
+      }
+      if(t.hasAttribute("data-chk-txt")||t.hasAttribute("data-chk-etapa"))return;
+      if(t.hasAttribute("data-orc")){
+        if(e.type!=="change")return;var oi=+t.getAttribute("data-orc"),f=t.files&&t.files[0];if(!f||!ed.parceiros[oi])return;
+        if(f.size>26214400){S.toast("Arquivo maior que 25 MB.");t.value="";return;}
+        S.toast("Enviando orçamento…");
+        S.subir(f).then(function(r){if(!ed.parceiros[oi])return;ed.parceiros[oi].orcamento=r;gravarParc(r.nota&&r.nota!=="só o nome (modo demonstração)"?"Orçamento não foi guardado: "+r.nota+".":"Orçamento anexado.");});
         return;
       }
       if(t.hasAttribute("data-eq")){var i=ed.equipe.indexOf(t.getAttribute("data-eq"));if(t.checked&&i<0)ed.equipe.push(t.getAttribute("data-eq"));if(!t.checked&&i>=0)ed.equipe.splice(i,1);return;}
@@ -702,7 +819,9 @@ M.producao={
       var nm={};equipeLista().forEach(function(x){nm[x.id]=x.nome;});
       corpo.equipeNomes=ed.equipe.map(function(i){return nm[i]||(adm&&St.get("equipe",i)||{}).nome||"";}).filter(Boolean); /* o colaborador não lê Equipe */
       if(!adm){var at=St.get("producoes",pid)||{};corpo.pecas=at.pecas||[];corpo.contratoId=at.contratoId||"";corpo.clienteId=at.clienteId||"";corpo.rtRever=true;}
-      return St.salvar("producoes",pid||null,corpo).then(function(nid){ed.id=nid;return M.producao.sync(nid,corpo).then(function(){return adm?syncRT(nid):0;}).then(function(n){
+      /* Google: o acesso é pedido aqui, ainda no clique (a janela do Google só abre no clique), e só se a agenda muda */
+      var tokP=gOkAdm()&&precisaGoogleProd(pid,corpo)?tokenGoogle():null;if(tokP)tokP.catch(function(){});
+      return St.salvar("producoes",pid||null,corpo).then(function(nid){ed.id=nid;return M.producao.sync(nid,corpo,tokP).then(function(){return adm?syncRT(nid):0;}).then(function(n){
         S.toast(n?"Produção salva. Calendário e RT no Financeiro atualizados.":"Produção salva e calendário atualizado.");if(!pid){history.replaceState(null,"","#adm/producao/"+nid);desenhar();}return nid;});},function(e){S.erroGravar(e);throw e;});
     }
     /* RT das peças vai sozinha para o Financeiro (A receber) ao salvar: um lançamento por peça com RT, na data de pagamento da RT.
@@ -724,6 +843,7 @@ M.producao={
       return fila.reduce(function(q,o){return q.then(function(){return o[1]?St.salvar("financeiro",o[0],o[1]):St.excluir("financeiro",o[0]);});},Promise.resolve()).then(function(){return fila.length;});
     }
     m.addEventListener("input",aoMudar);m.addEventListener("change",aoMudar);m.addEventListener("click",aoClicar);
+    m.addEventListener("keydown",function(e){if(e.key==="Enter"&&e.target.hasAttribute&&e.target.hasAttribute("data-chk-txt")){e.preventDefault();var b=$("[data-add-chk]",m);if(b)b.click();}});
     desenhar();
     /* Colaborador mexeu na produção (título, datas, status): o adm, ao abrir, confere a RT no Financeiro sozinho */
     if(adm&&ed.id&&ed.rtRever){delete ed.rtRever;syncRT(ed.id).then(function(){var c=St.copia("producoes",ed.id);if(!c)return;delete c.id;delete c.rtRever;return St.salvar("producoes",ed.id,c);}).catch(function(){});}
@@ -824,7 +944,7 @@ function evTarefa(t){
   return {id:"tar:"+t.id,titulo:t.titulo||"Tarefa",tipo:"tarefa",data:ini,dataFim:fim,hora:t.hora||"",horaFim:t.horaFim||"",local:"",desc:[r?"Responsável: "+r:"",t.desc||""].filter(Boolean).join(". "),tarefaId:t.id};
 }
 /* Toda tarefa com data (início ou prazo) aparece no calendário, sem precisar marcar (pedido da Isys, 2026-11-15) */
-function agendaTudo(){return St.list("agenda").concat(St.list("tarefas").filter(function(t){return t.inicio||t.prazo;}).map(evTarefa));}
+function agendaTudo(){return St.list("agenda").filter(function(e){return !e.gApagar;}).concat(St.list("tarefas").filter(function(t){return t.inicio||t.prazo;}).map(evTarefa));}
 function eventosDoDia(dia){return agendaTudo().filter(function(e){return e.data&&e.data<=dia&&(e.dataFim||e.data)>=dia;}).sort(function(a,b){return String(a.hora||"").localeCompare(String(b.hora||""));});}
 function proximosEventos(n){var h=S.hoje();return agendaTudo().filter(function(e){return (e.dataFim||e.data)>=h;}).sort(function(a,b){return (String(a.data)+(a.hora||"")).localeCompare(String(b.data)+(b.hora||""));}).slice(0,n);}
 /* Compromisso em linha: data (e hora) | título (e local) | tipo, nas mesmas colunas em todas as linhas */
@@ -846,26 +966,40 @@ function verEvento(id){
   S.modal({sobre:t[0],ico:"calendario",titulo:e.titulo,semFoco:1,
     corpo:'<dl class="itens">'+[["Data",S.dataBR(e.data)+(e.dataFim&&e.dataFim!==e.data?" a "+S.dataBR(e.dataFim):"")],["Horário",(e.hora||"")+(e.horaFim?" às "+e.horaFim:"")],["Responsável",e.respNome],["Local",e.local],["Detalhes",e.desc]].filter(function(x){return x[1];}).map(function(x){return '<div class="item"><b>'+esc(x[0])+'</b><span style="grid-column:1/-1;color:var(--tinta)">'+esc(x[1])+'</span></div>';}).join("")+'</dl>'+
       (e.auto&&adm?'<p class="nota" style="margin-top:var(--s-12)">Criado pela produção. Para mudar datas, edite a produção.</p>':''),
-    pe:(e.auto&&e.producaoId?'<a class="lnk esq" href="#adm/producao/'+esc(e.producaoId)+'" data-fechar>'+ik("producoes")+'Abrir produção</a>':'')+'<a class="btn btn--linha" target="_blank" rel="noopener" href="'+esc(gcal(e))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a><button type="button" class="btn btn--escuro" data-fechar>'+ik("fechar")+'Fechar</button>'});
+    pe:(e.auto&&e.producaoId?'<a class="lnk esq" href="#adm/producao/'+esc(e.producaoId)+'" data-fechar>'+ik("producoes")+'Abrir produção</a>':'')+
+      ((adm&&googleId()&&vaiAgenda(e))?'':'<a class="btn btn--linha" target="_blank" rel="noopener" href="'+esc(gcal(e))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a>')+ /* do Shylton: já vai sozinho, sem cópia solta */
+      '<button type="button" class="btn btn--escuro" data-fechar>'+ik("fechar")+'Fechar</button>'});
 }
 function modalEvento(id,data){
   var e=id?St.copia("agenda",id):{tipo:"visita",data:data||S.hoje()};
+  var gOk=gOkAdm();if(gOk)prepararGoogle().catch(function(){});
+  /* Compromisso do Shylton vai direto para a agenda dele no Google (pedido da Isys, 2026-11-15); dos outros, link para copiar */
+  var depois=gOk?'<p class="nota" style="margin-top:var(--s-16)">'+(e.gEvento?ik("calendario")+' Na agenda do Shylton no Google: mudar ou excluir aqui atualiza lá.':'Compromisso do Shylton vai direto para a agenda dele no Google ao salvar (o Google pode pedir para entrar com a conta dele).')+
+      (id&&!vaiAgenda(e)?' <a class="lnk" target="_blank" rel="noopener" href="'+esc(gcal(e))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a>':'')+'</p>':
+    id?'<p style="margin-top:var(--s-16)"><a class="lnk" target="_blank" rel="noopener" href="'+esc(gcal(e))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a></p>':'<p class="nota" style="margin-top:var(--s-16)">Depois de salvar, abra o compromisso para mandar ao Google Agenda.</p>';
   var d=S.modalForm({sobre:"Calendário",titulo:id?e.titulo:"Novo compromisso",dados:e,salvarRot:id?"Salvar":"+ Adicionar",
     campos:[{k:"titulo",r:"Título",req:1,full:1},{k:"tipo",r:"Tipo",t:"select",o:Object.keys(TIPOS_AG).filter(function(k){return k!=="producao";}).map(function(k){return [k,TIPOS_AG[k][0]];})},
       {k:"resp",r:"Responsável",t:"select",o:opcoesResp(),ajuda:"Só o que for do Shylton vai para o Google Agenda dele."},
       {k:"data",r:"Data",t:"date",req:1},{k:"dataFim",r:"Até (opcional)",t:"date"},{k:"hora",r:"Início",t:"time"},{k:"horaFim",r:"Fim",t:"time"},
       {k:"local",r:"Local",full:1},{k:"desc",r:"Detalhes",t:"area",full:1}],
-    depois:id?'<p style="margin-top:var(--s-16)"><a class="lnk" target="_blank" rel="noopener" href="'+esc(gcal(e))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a></p>':'<p class="nota" style="margin-top:var(--s-16)">Depois de salvar, abra o compromisso para mandar ao Google Agenda.</p>',
+    depois:depois,
     aoSalvar:function(v){if(v.dataFim&&v.dataFim<v.data)v.dataFim=v.data;var corpo=Object.assign({},e,v);delete corpo.id;
-      var mb=timeLista().filter(function(x){return x[0]===corpo.resp;})[0];corpo.respNome=corpo.resp==="adm"?"Shylton":(mb?mb[1]:"");return St.salvar("agenda",id||null,corpo).then(function(){S.toast("Compromisso salvo.");});},
-    aoExcluir:id?function(){return St.excluir("agenda",id);}:null});
+      var mb=timeLista().filter(function(x){return x[0]===corpo.resp;})[0];corpo.respNome=corpo.resp==="adm"?"Shylton":(mb?mb[1]:"");
+      var a=gOk?acaoAgenda(id?e:{},corpo):null;
+      if(!a)return St.salvar("agenda",id||null,corpo).then(function(){S.toast("Compromisso salvo.");});
+      return tokenGoogle().then(a).then(function(r){aplicarGoogle(corpo,r);return "ok";},function(er){if(window.console)console.error(er);if(corpo.gEvento)corpo.gAtrasado=true;return "falhou";})
+        .then(function(st){return St.salvar("agenda",id||null,corpo).then(function(){
+          S.toast(st==="ok"?"Compromisso salvo e agenda do Google atualizada.":"Compromisso salvo, mas o Google Agenda não foi atualizado agora. No Calendário, use “Atualizar a agenda do Google”.");});});
+    },
+    aoExcluir:id?function(){return excluirAgenda(id,gOk&&e.gEvento?tokenGoogle():null);}:null});
   return d;
 }
 M.calendario={render:function(m,id,vista){
-  var adm=S.ehAdm();
-  m.innerHTML=cab("Calendário",adm?"Produções, visitas, compromissos e as tarefas com data. Cada compromisso pode ir para o Google Agenda.":"Produções, visitas, compromissos e tarefas da equipe.",
+  var adm=S.ehAdm(),gOk=gOkAdm();if(gOk)prepararGoogle().catch(function(){});
+  m.innerHTML=cab("Calendário",adm?"Produções, visitas, compromissos e as tarefas com data. "+(gOk?"O que é do Shylton vai direto para a agenda dele no Google.":"Cada compromisso pode ir para o Google Agenda."):"Produções, visitas, compromissos e tarefas da equipe.",
     '<div class="cal-nav"><button type="button" data-mes="-1">'+ik("anterior")+'Anterior</button><b id="cal-tit"></b><button type="button" data-mes="1">Próximo'+ik("proximo")+'</button><button type="button" data-mes="0">'+ik("calendario")+'Hoje</button></div>'+(adm?'<button type="button" class="btn btn--escuro" data-novo>'+ik("mais")+'Compromisso</button>':''))+
-    '<div id="sis-lista"></div>';
+    '<div id="k-google"></div><div id="sis-lista"></div>';
+  var avisoGoogle=avisoGoogleEm($("#k-google",m));
   $$("[data-mes]",m).forEach(function(b){b.addEventListener("click",function(){
     var dlt=+b.getAttribute("data-mes");
     if(!dlt)mesCal=S.hoje().slice(0,7);else{var p=mesCal.split("-").map(Number),d=new Date(p[0],p[1]-1+dlt,1);mesCal=d.getFullYear()+"-"+S.pad(d.getMonth()+1);}
@@ -894,6 +1028,7 @@ M.calendario={render:function(m,id,vista){
     html+='<section class="sis-sec proximos"><h2>'+ik("calendario")+'Próximos</h2><div class="itens">'+(prox.length?prox.map(itemEvento).join(""):'<p class="nota">Nada marcado.</p>')+'</div></section>';
     html+='<p class="nota">Legenda: '+Object.keys(TIPOS_AG).map(function(k){return '<span class="tag" style="--c:'+TIPOS_AG[k][1]+';margin-right:14px">'+TIPOS_AG[k][0]+'</span>';}).join("")+'</p>';
     $("#sis-lista",m).innerHTML=html;
+    avisoGoogle();
   };
   if(!carregando($("#sis-lista",m),vista,["agenda","tarefas"]))vista.atualizar();
 }};
@@ -998,15 +1133,19 @@ function tokenGoogle(){
 }
 function gFetch(tok,met,url,corpo){
   return fetch(url,{method:met,headers:corpo?{Authorization:"Bearer "+tok,"Content-Type":"application/json"}:{Authorization:"Bearer "+tok},body:corpo?JSON.stringify(corpo):undefined}).then(function(r){
-    if(r.status===204||(met==="DELETE"&&r.status===410))return {};
+    if(r.status===204||(met==="DELETE"&&(r.status===410||r.status===404)))return {}; /* já apagado no Google */
     return r.json().catch(function(){return {};}).then(function(j){if(!r.ok){if(r.status===401)gTok=null;throw {code:"google_"+r.status,det:j&&j.error&&j.error.message};}return j;});
   });
 }
 function somaHora(h,min){var p=String(h).split(":"),t=(+p[0])*60+(+p[1]||0)+min;return S.pad(Math.floor(t/60)%24)+":"+S.pad(t%60);}
-function eventoGoogle(t){
-  var d=t.inicio||t.prazo,hf=t.horaFim||somaHora(t.hora,60),df=hf<=t.hora?S.somaDias(d,1):d;
-  return {summary:t.titulo||"Reunião",description:(t.desc?t.desc+"\n\n":"")+"Tarefa da área restrita · shyltonmavie.com",
-    start:{dateTime:d+"T"+t.hora+":00",timeZone:TZ_G},end:{dateTime:df+"T"+hf+":00",timeZone:TZ_G}};
+/* Com horário: evento com hora (fim = horário de fim ou 1 h depois). Sem horário: dia inteiro, do início ao prazo.
+   Os null limpam o outro formato quando a tarefa ganha ou perde horário; status "confirmed" traz de volta um evento apagado no Google. */
+function eventoGoogle(t,reun){
+  var d=t.inicio||t.prazo,ev={summary:t.titulo||(reun?"Reunião":"Tarefa"),description:(t.desc?t.desc+"\n\n":"")+"Tarefa da área restrita · shyltonmavie.com",status:"confirmed"};
+  if(t.hora){var hf=t.horaFim||somaHora(t.hora,60),df=hf<=t.hora?S.somaDias(d,1):d;
+    ev.start={dateTime:d+"T"+t.hora+":00",timeZone:TZ_G,date:null};ev.end={dateTime:df+"T"+hf+":00",timeZone:TZ_G,date:null};}
+  else{var f=t.prazo&&t.prazo>=d?t.prazo:d;ev.start={date:d,dateTime:null,timeZone:null};ev.end={date:S.somaDias(f,1),dateTime:null,timeZone:null};}
+  return ev;
 }
 function linkMeet(ev){
   var l=ev&&ev.hangoutLink||"";
@@ -1015,10 +1154,10 @@ function linkMeet(ev){
 }
 function linkGoogle(u){return /^https:\/\/(www\.)?google\.com\/calendar\//.test(String(u||""))?u:"";}
 function criarMeet(tok,t){
-  var corpo=Object.assign(eventoGoogle(t),{conferenceData:{createRequest:{requestId:"sm"+Date.now().toString(36)+Math.random().toString(36).slice(2,8),conferenceSolutionKey:{type:"hangoutsMeet"}}}});
+  var corpo=Object.assign(eventoGoogle(t,true),{conferenceData:{createRequest:{requestId:"sm"+Date.now().toString(36)+Math.random().toString(36).slice(2,8),conferenceSolutionKey:{type:"hangoutsMeet"}}}});
   return gFetch(tok,"POST",GEV+"?conferenceDataVersion=1",corpo).then(function(ev){
     if(linkMeet(ev))return ev;
-    return new Promise(function(ok){setTimeout(ok,2000);}).then(function(){return gFetch(tok,"GET",GEV+"/"+encodeURIComponent(ev.id));});
+    return new Promise(function(ok){setTimeout(ok,2000);}).then(function(){return gFetch(tok,"GET",GEV+"/"+encodeURIComponent(ev.id));}).then(function(e2){return e2&&e2.id?e2:ev;},function(){return ev;});
   }).then(function(ev){return {meetEvento:ev.id,meetLink:linkMeet(ev),meetGoogle:linkGoogle(ev.htmlLink)};});
 }
 function msgGoogle(e){
@@ -1029,20 +1168,146 @@ function msgGoogle(e){
   return "Não foi possível falar com o Google Agenda. A tarefa não foi salva: tente de novo ou desmarque a reunião online.";
 }
 var CAMPOS_MEET=["titulo","desc","inicio","prazo","hora","horaFim"];
+/* ---------- Tarefas do Shylton direto na agenda dele (pedido da Isys, 2026-11-15) ----------
+   Pelo link .ics, mudar a data ou excluir demorava horas para aparecer: o Google só relê o link algumas vezes por dia.
+   Agora toda tarefa do Shylton com data (e toda reunião) vira evento na agenda principal dele ao salvar; mudar ou excluir
+   aqui atualiza lá na hora. O id do evento fica em meetEvento (nome antigo, de propósito: a função agenda já pula tarefa
+   com meetEvento, sem precisar reimplantar). meet:true = evento com Google Meet; tarefa antiga com meetEvento sem "meet" era reunião.
+   O que for mudado direto no Google não volta para o site. */
+function temMeet(t){return !!t.meetEvento&&t.meet!==false;}
+function vaiProGoogle(t,reun){return !!(reun||(t.resp==="adm"&&(t.inicio||t.prazo)));}
+function criarEvento(tok,t,reun){
+  if(reun)return criarMeet(tok,t).then(function(r){r.meet=true;r.gAtrasado="";return r;});
+  return gFetch(tok,"POST",GEV,eventoGoogle(t,false)).then(function(ev){return {meetEvento:ev.id,meetLink:"",meetGoogle:linkGoogle(ev.htmlLink),meet:false,gAtrasado:""};});
+}
+var SEM_EVENTO={meetEvento:"",meetLink:"",meetGoogle:"",meet:"",gAtrasado:""};
+/* O que fazer no Google para a tarefa ficar como "novo" (antes = como está gravada). null = nada a fazer. */
+function acaoGoogle(antes,novo,reun){
+  var quer=vaiProGoogle(novo,reun),id=antes.meetEvento,enc=encodeURIComponent(id||"");
+  if(quer&&!id)return function(tok){return criarEvento(tok,novo,reun);};
+  if(quer&&reun!==temMeet(antes))return function(tok){return gFetch(tok,"DELETE",GEV+"/"+enc).then(function(){return criarEvento(tok,novo,reun);});};
+  if(quer&&(antes.gAtrasado||CAMPOS_MEET.some(function(k){return (novo[k]||"")!==(antes[k]||"");})))return function(tok){
+    return gFetch(tok,"PATCH",GEV+"/"+enc,eventoGoogle(novo,reun)).then(function(){return {gAtrasado:""};},function(e){
+      if(e&&(e.code==="google_404"||e.code==="google_410"))return criarEvento(tok,novo,reun); /* sumiu do Google: cria de novo */
+      throw e;});
+  };
+  if(!quer&&id)return function(tok){return gFetch(tok,"DELETE",GEV+"/"+enc).then(function(){return SEM_EVENTO;});};
+  return null;
+}
+function aplicarGoogle(corpo,r){Object.keys(r).forEach(function(k){if(r[k]===""||r[k]==null)delete corpo[k];else corpo[k]=r[k];});}
+/* Tarefas que ficaram para trás no Google: mudadas por colaborador (gAtrasado) ou do Shylton com data que ainda não foram */
+function pendGoogle(){
+  var h=S.hoje();
+  return St.list("tarefas").filter(function(t){return t.gAtrasado||(!t.meetEvento&&t.resp==="adm"&&(t.prazo||t.inicio)>=h);});
+}
+/* ---------- Compromissos e produções do Shylton direto na agenda dele (pedido da Isys, 2026-11-15) ----------
+   Mesmo esquema das tarefas: o id do evento fica em gEvento no registro da agenda (a produção usa o registro "prod-<id>").
+   gAtrasado = mudou aqui sem conseguir falar com o Google; gApagar = excluído aqui, falta apagar lá (some do calendário já).
+   A função agenda (link .ics) pula o que tem gEvento ou gApagar. */
+var CAMPOS_AG=["titulo","desc","local","data","dataFim","hora","horaFim","tipo"];
+function gOkAdm(){return S.ehAdm()&&!!googleId();}
+function vaiAgenda(e){return !!(e&&e.data&&(e.tipo==="producao"||(e.resp||"adm")==="adm"));} /* antigo sem responsável: do Shylton */
+/* Com horário: sem fim, dura 2 h (como o link .ics). Sem horário: dia inteiro, do início ao fim. */
+function eventoAgenda(e){
+  var d=e.data,f=e.dataFim&&e.dataFim>=d?e.dataFim:d,
+    ev={summary:e.titulo||"Compromisso",location:e.local||"",description:(e.desc?e.desc+"\n\n":"")+(e.tipo==="producao"?"Produção":"Compromisso")+" da área restrita · shyltonmavie.com",status:"confirmed"};
+  if(e.hora){var hf=e.horaFim||somaHora(e.hora,120),df=f;if(df===d&&hf<=e.hora)df=S.somaDias(d,1);
+    ev.start={dateTime:d+"T"+e.hora+":00",timeZone:TZ_G,date:null};ev.end={dateTime:df+"T"+hf+":00",timeZone:TZ_G,date:null};}
+  else{ev.start={date:d,dateTime:null,timeZone:null};ev.end={date:S.somaDias(f,1),dateTime:null,timeZone:null};}
+  return ev;
+}
+function criarEvAg(tok,e){return gFetch(tok,"POST",GEV,eventoAgenda(e)).then(function(ev){if(!ev||!ev.id)throw {code:"google_sem_id"};return {gEvento:ev.id,gAtrasado:""};});}
+/* O que fazer no Google para o compromisso ficar como "novo" (antes = como está gravado). null = nada a fazer. */
+function acaoAgenda(antes,novo){
+  var quer=vaiAgenda(novo),id=antes.gEvento,enc=encodeURIComponent(id||"");
+  if(quer&&!id)return function(tok){return criarEvAg(tok,novo);};
+  if(quer&&(antes.gAtrasado||CAMPOS_AG.some(function(k){return (novo[k]||"")!==(antes[k]||"");})))return function(tok){
+    return gFetch(tok,"PATCH",GEV+"/"+enc,eventoAgenda(novo)).then(function(){return {gAtrasado:""};},function(er){
+      if(er&&(er.code==="google_404"||er.code==="google_410"))return criarEvAg(tok,novo); /* sumiu do Google: cria de novo */
+      throw er;});
+  };
+  if(!quer&&id)return function(tok){return gFetch(tok,"DELETE",GEV+"/"+enc).then(function(){return {gEvento:"",gAtrasado:""};});};
+  return null;
+}
+/* Registro da agenda feito pela produção (null = produção sem data ou cancelada: sai da agenda) */
+function agendaProd(id,p){
+  if(!p||!p.dataInicio||p.status==="cancelada")return null;
+  var nomes=(p.equipe||[]).map(function(i){return (St.get("equipe",i)||{}).nome;}).filter(Boolean);
+  if(!nomes.length&&Array.isArray(p.equipeNomes))nomes=p.equipeNomes.filter(Boolean); /* o colaborador não lê Equipe */
+  return {titulo:"Produção · "+(p.titulo||""),tipo:"producao",data:p.dataInicio,dataFim:p.dataFim||p.dataInicio,hora:p.hora||"",horaFim:"",local:p.local||"",desc:nomes.length?"Equipe: "+nomes.join(", "):"",producaoId:id,auto:true};
+}
+/* Salvar a produção vai mexer no Google? (para pedir o acesso ainda no clique) */
+function precisaGoogleProd(id,p){
+  var ag=id?St.get("agenda","prod-"+id):null,novo=agendaProd(id,p);
+  return novo?!!acaoAgenda(ag||{},novo):!!(ag&&ag.gEvento);
+}
+/* Grava o registro da agenda e acerta o Google com o acesso tokP (pedido no clique). Sem acesso: fica para "Atualizar a agenda do Google". */
+function gravarAgenda(id,antes,novo,tokP){
+  antes=antes||{};
+  if(antes.gEvento)novo.gEvento=antes.gEvento;if(antes.gAtrasado)novo.gAtrasado=true;
+  var a=acaoAgenda(antes,novo),salva=function(){return St.salvar("agenda",id,novo);};
+  if(!a)return salva();
+  if(!tokP){if(novo.gEvento)novo.gAtrasado=true;return salva();}
+  return tokP.then(a).then(function(r){aplicarGoogle(novo,r);},function(er){if(window.console)console.error(er);if(novo.gEvento)novo.gAtrasado=true;}).then(salva);
+}
+/* Exclui o compromisso e o evento no Google. Sem acesso ao Google: some do site já e fica marcado para apagar lá depois. */
+function excluirAgenda(id,tokP){
+  var e=St.get("agenda",id);if(!e)return Promise.resolve();
+  if(!e.gEvento)return St.excluir("agenda",id);
+  var marca=function(){var c=St.copia("agenda",id);delete c.id;c.gApagar=true;return St.salvar("agenda",id,c);};
+  if(!tokP)return marca();
+  return tokP.then(function(tok){return gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(e.gEvento));}).then(function(){return St.excluir("agenda",id);},function(er){
+    if(window.console)console.error(er);return marca().then(function(){S.toast("O evento continua no Google Agenda por enquanto: no Calendário, use “Atualizar a agenda do Google”.");});});
+}
+function pendAgenda(){
+  var h=S.hoje();
+  return St.list("agenda").filter(function(e){return e.gAtrasado||e.gApagar||(!e.gEvento&&vaiAgenda(e)&&(e.dataFim||e.data)>=h);});
+}
+function sincPendentes(){
+  var l=pendGoogle(),la=pendAgenda();if(!l.length&&!la.length)return Promise.resolve(0);
+  return tokenGoogle().then(function(tok){
+    var feitos=0;
+    var pt=l.reduce(function(p,t){return p.then(function(){
+      var a=acaoGoogle(t,t,temMeet(t));if(!a){if(!t.gAtrasado)return;a=function(){return Promise.resolve({gAtrasado:""});};}
+      return a(tok).then(function(r){var c=St.copia("tarefas",t.id);if(!c)return;delete c.id;aplicarGoogle(c,r);feitos++;return St.salvar("tarefas",t.id,c);});
+    });},Promise.resolve());
+    return la.reduce(function(p,e){return p.then(function(){
+      if(e.gApagar)return (e.gEvento?gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(e.gEvento)):Promise.resolve()).then(function(){feitos++;return St.excluir("agenda",e.id);});
+      var a=acaoAgenda(e,e);if(!a){if(!e.gAtrasado)return;a=function(){return Promise.resolve({gAtrasado:""});};}
+      return a(tok).then(function(r){var c=St.copia("agenda",e.id);if(!c)return;delete c.id;aplicarGoogle(c,r);feitos++;return St.salvar("agenda",e.id,c);});
+    });},pt).then(function(){return feitos;});
+  });
+}
+/* Aviso "N itens do Shylton ainda não estão em dia" + botão, nas Tarefas e no Calendário (bx = caixa vazia). Devolve a função que redesenha. */
+function avisoGoogleEm(bx){
+  var sincando=false,pinta=function(){
+    var n=gOkAdm()?pendGoogle().length+pendAgenda().length:0;
+    bx.innerHTML=n?'<p class="nota t-meet k-google">'+ik("calendario")+'<span>'+n+(n===1?' item do Shylton ainda não está em dia':' itens do Shylton ainda não estão em dia')+' na agenda do Google.</span><button type="button" class="lnk" data-gsinc>'+ik("trocar")+'Atualizar a agenda do Google</button></p>':'';
+  };
+  bx.addEventListener("click",function(e){
+    if(!e.target.closest("[data-gsinc]")||sincando)return;sincando=true;S.toast("Atualizando a agenda do Google…");
+    sincPendentes().then(function(n){sincando=false;S.toast(n?"Agenda do Google atualizada ("+n+").":"A agenda do Google já está em dia.");pinta();},
+      function(er){sincando=false;if(window.console)console.error(er);S.toast(msgGoogle(er).replace(/ A tarefa não foi salva.*$/,""));pinta();});
+  });
+  return pinta;
+}
 function modalTarefa(id,coluna){
   var adm=S.ehAdm(),t=id?St.copia("tarefas",id):{coluna:coluna||"afazer",resp:adm?"adm":(S.Sessao.membroId||""),criadaEm:S.agoraISO()};
   var gOk=adm&&!!googleId();
-  if(t.meetEvento)t.reuniao=true;
+  if(temMeet(t))t.reuniao=true;
   var cs=[{k:"titulo",r:"Tarefa",req:1,full:1},{k:"desc",r:"Detalhes",t:"area",full:1},
     {k:"inicio",r:"Início",t:"date"},{k:"prazo",r:"Prazo (fim)",t:"date"},{k:"hora",r:"Horário de início",t:"time"},{k:"horaFim",r:"Horário de fim",t:"time"}];
   if(gOk)cs.push({k:"reuniao",r:"Reunião online (Google Meet na agenda do Shylton)",t:"check",full:1});
   cs.push({k:"resp",r:"Responsável",t:"select",o:opcoesResp()},{k:"coluna",r:"Coluna",t:"select",o:COLS_K});
   var temData=id&&(t.inicio||t.prazo);
   /* Sem botão de entrar na reunião (pedido da Isys, 2026-11-15): o Shylton entra pelo Google Agenda */
-  var meet=t.meetEvento?'<p class="nota t-meet">'+ik("video")+'Reunião no Google Meet marcada na agenda do Shylton. Para entrar, abra o Google Agenda.</p>':'';
+  var meet=temMeet(t)?'<p class="nota t-meet">'+ik("video")+'Reunião no Google Meet marcada na agenda do Shylton. Para entrar, abra o Google Agenda.</p>':
+    t.meetEvento?'<p class="nota t-meet">'+ik("calendario")+'Na agenda do Shylton no Google: mudar a data ou excluir aqui atualiza lá.</p>':'';
+  /* "Adicionar ao Google Agenda" fazia uma cópia solta no Google (não mudava nem sumia com a tarefa): só para quem não vai sozinho */
+  var copia=temData&&!t.meetEvento&&!(gOk&&t.resp==="adm");
   var nota='<p class="nota" style="margin-top:var(--s-16)">Com data de início ou prazo, a tarefa aparece no Calendário da área restrita, do início ao prazo.'+
-    (gOk?' Com <b>Reunião online</b>, informe a data e o horário: ao salvar, o Google pede para entrar com a conta do Shylton e a reunião com Meet vai para a agenda dele.':adm?' Para criar reuniões no Google Meet, configure em <a class="lnk" href="#adm/ajustes">Ajustes › Reuniões no Google Meet</a>.':'')+
-    (temData&&!t.meetEvento?' <a class="lnk" target="_blank" rel="noopener" href="'+esc(gcal(evTarefa(Object.assign({id:id},t))))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a>':'')+'</p>';
+    (gOk?' Tarefa do Shylton com data vai direto para a agenda dele no Google (ao salvar, o Google pode pedir para entrar com a conta dele); mudar a data ou excluir aqui atualiza lá. Com <b>Reunião online</b>, informe a data e o horário: a reunião com Meet vai para a agenda dele.':adm?' Para mandar tarefas e reuniões do Google Meet direto para a agenda do Shylton, configure em <a class="lnk" href="#adm/ajustes">Ajustes › Reuniões no Google Meet</a>.':'')+
+    (copia?' <a class="lnk" target="_blank" rel="noopener" href="'+esc(gcal(evTarefa(Object.assign({id:id},t))))+'">'+ik("calendario")+'Adicionar ao Google Agenda ↗</a>':'')+'</p>';
   if(gOk)prepararGoogle().catch(function(){});
   S.modalForm({sobre:"Tarefas",titulo:id?"Editar tarefa":"Nova tarefa",campos:cs,dados:t,salvarRot:id?"Salvar":"+ Adicionar",
     depois:meet+nota,
@@ -1057,27 +1322,35 @@ function modalTarefa(id,coluna){
       else if(!id&&!adm){corpo.respNome=S.Sessao.nome||"";corpo.respUser=S.Sessao.userId||"";}
       /* nova na coluna, ou trocou de coluna: vai para o fim, se a coluna já tem ordem manual */
       if(!id||corpo.coluna!==t.coluna){var fim=fimDaColuna(corpo.coluna,id);if(fim==null)delete corpo.ordem;else corpo.ordem=fim;}
-      /* Google Meet: criar, atualizar ou apagar o evento antes de gravar a tarefa */
-      var acao=null;
+      /* Google: criar, atualizar ou apagar o evento antes de gravar a tarefa */
+      var reun=!!corpo.reuniao,acao=null;delete corpo.reuniao;
       if(gOk){
-        if(corpo.reuniao&&(!(corpo.inicio||corpo.prazo)||!corpo.hora)){S.toast("Para a reunião online, informe a data de início e o horário.");return false;}
-        if(corpo.reuniao&&!t.meetEvento)acao=function(tok){return criarMeet(tok,corpo);};
-        else if(corpo.reuniao&&CAMPOS_MEET.some(function(k){return (corpo[k]||"")!==(t[k]||"");}))acao=function(tok){return gFetch(tok,"PATCH",GEV+"/"+encodeURIComponent(t.meetEvento),eventoGoogle(corpo)).then(function(){return {};});};
-        else if(!corpo.reuniao&&t.meetEvento)acao=function(tok){return gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(t.meetEvento)).then(function(){return {meetEvento:"",meetLink:"",meetGoogle:""};});};
-      }
-      delete corpo.reuniao;
+        if(reun&&(!(corpo.inicio||corpo.prazo)||!corpo.hora)){S.toast("Para a reunião online, informe a data de início e o horário.");return false;}
+        acao=acaoGoogle(t,corpo,reun);
+      }else if(!adm&&t.meetEvento&&(corpo.resp!==t.resp||CAMPOS_MEET.some(function(k){return (corpo[k]||"")!==(t[k]||"");})))
+        corpo.gAtrasado=true; /* colaborador mudou tarefa que está no Google: o adm atualiza em Tarefas */
+      /* Reunião (criar ou tirar o Meet) sem o Google não salva; tarefa simples salva e o Google é atualizado depois */
+      var comMeet=reun||temMeet(t);
       var passo=acao?tokenGoogle().then(acao).then(function(r){
-        Object.keys(r).forEach(function(k){if(r[k])corpo[k]=r[k];else delete corpo[k];});
-        if(r.meetEvento&&!r.meetLink)S.toast("Reunião criada no Google Agenda; o link do Meet aparece lá.");
-        return true;
-      },function(e){if(window.console)console.error(e);S.toast(msgGoogle(e));return false;}):Promise.resolve(true);
-      return passo.then(function(ok){
-        if(!ok)return false;
-        return St.salvar("tarefas",id||null,corpo).then(function(){S.toast(acao&&corpo.meetLink&&!t.meetEvento?"Tarefa salva e reunião criada no Google Agenda.":"Tarefa salva.");});
+        aplicarGoogle(corpo,r);
+        if(r.meet&&!r.meetLink)S.toast("Reunião criada no Google Agenda; o link do Meet aparece lá.");
+        return "ok";
+      },function(e){
+        if(window.console)console.error(e);
+        if(comMeet){S.toast(msgGoogle(e));return false;}
+        if(t.meetEvento)corpo.gAtrasado=true;
+        return "falhou";
+      }):Promise.resolve("");
+      return passo.then(function(st){
+        if(!st&&st!=="")return false;
+        return St.salvar("tarefas",id||null,corpo).then(function(){
+          S.toast(st==="falhou"?"Tarefa salva, mas o Google Agenda não foi atualizado agora. Em Tarefas, use “Atualizar a agenda do Google”.":
+            st==="ok"&&reun&&!t.meetEvento?"Tarefa salva e reunião criada no Google Agenda.":st==="ok"?"Tarefa salva e agenda do Google atualizada.":"Tarefa salva.");
+        });
       });
     },
     aoExcluir:id&&adm?function(){
-      var tira=t.meetEvento&&gOk?tokenGoogle().then(function(tok){return gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(t.meetEvento));}).then(null,function(){S.toast("A reunião continua no Google Agenda: apague por lá.");}):Promise.resolve();
+      var tira=t.meetEvento&&gOk?tokenGoogle().then(function(tok){return gFetch(tok,"DELETE",GEV+"/"+encodeURIComponent(t.meetEvento));}).then(null,function(){S.toast("O evento continua no Google Agenda: apague por lá.");}):Promise.resolve();
       return tira.then(function(){return St.excluir("tarefas",id);});
     }:null});
 }
@@ -1132,8 +1405,11 @@ M.tarefas={render:function(m,id,vista){
   var opts=[["todos","Todas"],["minhas","Minhas"]].concat(timeLista().filter(function(x){return x[0]!==eu;}).map(function(x){return [x[0],x[1]];}));
   if(!opts.some(function(o){return o[0]===fTar.resp;}))fTar.resp="todos";
   m.innerHTML=cab("Tarefas",adm?"Para você e para a equipe. Use o filtro para ver as suas, as de um colaborador ou as de toda a equipe; arraste os cartões entre as colunas e use as setas ↑ ↓ para mudar a ordem. Concluídas há 40 dias são apagadas sozinhas.":"Suas tarefas e as da equipe. Escolha o responsável de cada tarefa e use o filtro para ver as de cada pessoa; arraste os cartões entre as colunas e use as setas ↑ ↓ para mudar a ordem. Concluídas há 40 dias são apagadas sozinhas.",'<button type="button" class="btn btn--escuro" data-nova>'+ik("mais")+'Nova tarefa</button>')+
-    '<div class="k-filtro"><label class="f">Mostrar tarefas de'+selectHTML("data-resp",opts,fTar.resp)+'</label><p class="k-filtro__n" id="k-total"></p></div><div id="sis-lista"></div>';
+    '<div class="k-filtro"><label class="f">Mostrar tarefas de'+selectHTML("data-resp",opts,fTar.resp)+'</label><p class="k-filtro__n" id="k-total"></p></div><div id="k-google"></div><div id="sis-lista"></div>';
   $("[data-nova]",m).addEventListener("click",function(){modalTarefa(null);});
+  /* Aviso do adm: tarefas que ainda não estão (ou não estão em dia) na agenda do Shylton no Google */
+  var gOk=adm&&!!googleId();if(gOk)prepararGoogle().catch(function(){});
+  var avisoGoogle=avisoGoogleEm($("#k-google",m));
   $("[data-resp]",m).addEventListener("change",function(e){fTar.resp=e.target.value;vista.atualizar();});
   var caixa=$("#sis-lista",m);
   caixa.addEventListener("click",function(e){
@@ -1149,7 +1425,7 @@ M.tarefas={render:function(m,id,vista){
   caixa.addEventListener("drop",function(e){var k=e.target.closest(".kcol");if(!k)return;e.preventDefault();k.classList.remove("sobre");var tid=e.dataTransfer.getData("text/plain");if(tid)moverTarefa(tid,k.getAttribute("data-col"));});
   vista.atualizar=function(){
     var h=S.hoje();
-    limparConcluidas();
+    limparConcluidas();avisoGoogle();
     var l=St.list("tarefas").filter(function(t){return !velha(t)&&(fTar.resp==="todos"||(fTar.resp==="minhas"?ehMinha(t):t.resp===fTar.resp));});
     $("#k-total",m).innerHTML='<b>'+l.length+'</b> '+(l.length===1?"cartão":"cartões");
     caixa.innerHTML='<div class="kanban">'+COLS_K.map(function(c,ci){
@@ -1282,18 +1558,28 @@ M.ajustes={render:function(m,id,vista){
     {k:"proposta.pagamento",r:"Forma de pagamento"},{k:"proposta.etapas",r:"Etapas"},
     {k:"proposta.exclusoes",r:"Exclusões",t:"area",full:1},{k:"proposta.observacoes",r:"Observações (uma por linha)",t:"area",full:1,alt:120},
     {k:"proposta.creditos",r:"Observação em destaque (vermelho)",full:1}],c)+'</div></section>'+
+  /* Modelo do checklist recolhido (pedido da Isys, 2026-11-15): é o padrão inicial de toda produção nova; em cada produção ainda dá para incluir e tirar itens */
+  '<section class="sis-sec"><h2>'+ik("ok")+'Checklist das produções<small>Modelo padrão: entra em toda produção nova. Em cada produção dá para incluir ou tirar itens; produção já criada não muda quando o modelo muda.</small></h2>'+
+    '<div><p class="nota" data-chk-resumo>'+esc(resumoChk(c.checklist))+'</p><button type="button" class="lnk" data-abrir-modelo aria-expanded="false" aria-controls="aj-chk">'+ik("abaixo")+'<span>Ver e editar o modelo</span></button>'+
+    '<div id="aj-chk" hidden><div class="fgrid" style="margin-top:var(--s-16)"><p class="nota f--full">Um item por linha.</p>'+S.campos(
+    ETAPAS_CHK.map(function(e){return {k:"checklist."+e[0],r:e[1],t:"area",full:1,alt:110};}),c)+'</div></div></div></section>'+
   '</div>'+
   '<section class="sis-sec" id="aj-gcal"></section>'+
   '<section class="sis-sec" id="aj-gmeet"></section>'+
   '<section class="sis-sec"><h2>'+ik("saida")+'Dados</h2><div class="acoes"><button type="button" class="lnk" data-backup>'+ik("baixar")+'Baixar cópia de todos os dados (JSON)</button>'+(St.modo==="local"?'<button type="button" class="lnk lnk--perigo" data-limpar>'+ik("excluir")+'Apagar dados da demonstração</button>':'')+'</div></section>';
   $("[data-salvar]",m).addEventListener("click",function(){
     var v=S.lerCampos($("#aj-form",m)),atual=St.copia("config","geral")||{};delete atual.id;
-    ["calc","contratado","contrato","proposta"].forEach(function(k){atual[k]=Object.assign({},atual[k]||{},v[k]||{});});
+    ["calc","contratado","contrato","proposta","checklist"].forEach(function(k){atual[k]=Object.assign({},atual[k]||{},v[k]||{});});
     atual.whatsappAdm=v.whatsappAdm;atual.siteUrl=v.siteUrl;
     St.salvar("config","geral",atual).then(function(){S.toast("Ajustes salvos.");},S.erroGravar);
   });
+  $("[data-abrir-modelo]",m).addEventListener("click",function(){
+    var b=this,ab=b.getAttribute("aria-expanded")!=="true";b.setAttribute("aria-expanded",String(ab));$("#aj-chk",m).hidden=!ab;
+    b.innerHTML=ik(ab?"acima":"abaixo")+'<span>'+(ab?"Recolher o modelo":"Ver e editar o modelo")+'</span>';
+  });
+  $("#aj-chk",m).addEventListener("input",function(){var v=S.lerCampos($("#aj-chk",m));$("[data-chk-resumo]",m).textContent=resumoChk(v.checklist);});
   desenharGcal($("#aj-gcal",m));desenharGmeet($("#aj-gmeet",m));
-  $("[data-backup]",m).addEventListener("click",function(){var o={};["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config"].forEach(function(k){o[k]=St.list(k);});S.salvarArquivo("backup-area-restrita-"+S.hoje()+".json",JSON.stringify(o,null,2));});
+  $("[data-backup]",m).addEventListener("click",function(){var o={};["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config","orcamentos"].forEach(function(k){o[k]=St.list(k);});S.salvarArquivo("backup-area-restrita-"+S.hoje()+".json",JSON.stringify(o,null,2));});
   var lp=$("[data-limpar]",m);if(lp)lp.addEventListener("click",function(){S.confirmar({titulo:"Apagar todos os dados da demonstração?",texto:"Apaga tudo o que está salvo neste navegador. Essa ação não pode ser desfeita.",ok:"Apagar dados"}).then(function(sim){if(!sim)return;St.dados={};St.gravar();S.toast("Dados apagados.");S.render();});});
 }};
 })();

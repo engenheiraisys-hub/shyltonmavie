@@ -159,7 +159,7 @@ html:has(#v-inicio:not([hidden])){scroll-snap-type:y mandatory}
 .marcas__faixa{width:100%;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--s-48),#000 calc(100% - var(--s-48)),transparent);mask-image:linear-gradient(90deg,transparent,#000 var(--s-48),#000 calc(100% - var(--s-48)),transparent)}
 .marcas__lista{display:flex;align-items:center;width:max-content}
 .marcas__lista.anda{animation:corre var(--dur,60s) linear infinite}
-.marcas__faixa:hover .marcas__lista{animation-play-state:paused}
+@media (hover:hover){.marcas__faixa:hover .marcas__lista{animation-play-state:paused}} /* só com mouse: no celular o toque deixava a faixa parada */
 @keyframes corre{to{transform:translateX(-50%)}}
 .marca{display:flex;align-items:center;justify-content:center;gap:var(--s-12);min-height:48px;margin-right:var(--s-64);color:var(--tinta-2)}
 .marca img{display:block;width:auto;height:var(--h,40px);opacity:.62} /* grafite a 62% ≈ tom do texto secundário */
@@ -334,5 +334,6 @@ html:has(#v-inicio:not([hidden])){scroll-snap-type:y mandatory}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition:none !important;animation:none !important}
-  .marcas__faixa{overflow-x:auto} /* sem movimento: as linhas rolam com o dedo ou o mouse */
+  /* As marcas andam sempre, também no celular com "reduzir movimento" (pedido da Isys, 2026-11-15); aqui na metade da velocidade */
+  .marcas__lista.anda{animation:corre var(--dur,120s) linear infinite !important}
 }

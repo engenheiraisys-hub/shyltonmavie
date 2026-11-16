@@ -134,13 +134,34 @@ var PADRAO={
     exclusoes:"Não estão incluídos projetos estruturais, detalhamento de marcenaria executiva, projetos de engenharia, compra de flores ou compra de mobiliário.",
     observacoes:"o cliente terá que fornecer todos os documentos necessários para a elaboração da produção.\ncaso haja alteração de área o valor total poderá ser alterado.\nos prazos ficam condicionados às aprovações solicitadas ao cliente.\ngastos extras serão cobrados diretamente ao cliente, como folhagem, avarias de peças e outros.",
     creditos:"fica acordado que toda e qualquer foto ou material visual publicado deverá conter os devidos créditos"
+  },
+  /* Checklist de conferência das produções (2026-11-15): um item por linha, por etapa; editável em Ajustes */
+  checklist:{
+    antes:[
+      /* peças e styling */
+      "Folhagem vista","Objetos vistos","Objetos específicos vistos","Obras de arte vistas","Tapetes vistos","Toalhas vistas","Roupa de cama vista",
+      "Almofadas e mantas vistas","Cortinas e persianas vistas","Luminárias e abajures vistos","Móveis soltos vistos (cadeiras, mesas laterais, pufes)",
+      "Espelhos vistos","Vasos e cachepôs vistos","Flores vistas","Louças, copos e talheres vistos (mesa posta)","Livros e revistas vistos",
+      "Itens de cozinha e banheiro vistos (utensílios, saboneteira, amenities)","Itens de styling vistos (frutas, velas, aromas)","Quadros: medidas e forma de fixação conferidas",
+      /* local */
+      "Visita técnica feita (medidas e fotos)","Planta e medidas conferidas","Regras do prédio conferidas (horário, elevador de carga, vaga para descarga)",
+      "Pontos de energia e iluminação conferidos","Peças do cliente que saem ou ficam no ambiente combinadas","Acesso ao local liberado",
+      /* logística */
+      "Peças reservadas com os parceiros","Lista de peças por parceiro, com datas de retirada e devolução","Termo de empréstimo ou romaneio com os parceiros",
+      "Embalagens e proteção separadas (mantas, plástico bolha, caixas)","Kit de ferramentas separado (furadeira, nível, fita, ganchos, dupla face)","Kit de limpeza separado",
+      "Transporte agendado","Equipe confirmada",
+      /* cliente e fotografia */
+      "Conceito ou moodboard aprovado pelo cliente","Contrato assinado e sinal recebido","Fotógrafo confirmado (data e horário)","Cronograma enviado à equipe e ao cliente"
+    ].join("\n"),
+    montagem:"Peças conferidas na chegada\nAmbiente montado conforme o conceito\nFotos de registro feitas",
+    desmontagem:"Peças devolvidas aos parceiros\nPeças que ficaram com o cliente registradas\nLocal entregue limpo"
   }
 };
 function cfg(){
   var c=Store.get("config","geral")||{};
   function m(k){return Object.assign({},PADRAO[k],c[k]||{});}
   var k=m("contratado");if(/^\s*(est[uú]dio\s+)?mato\b/i.test(k.marca||""))k.marca=PADRAO.contratado.marca; /* a marca MATO saiu (pedido da Isys, 2026-11-09) */
-  return {calc:m("calc"),contratado:k,contrato:m("contrato"),proposta:m("proposta"),whatsappAdm:c.whatsappAdm||PADRAO.whatsappAdm,siteUrl:c.siteUrl||PADRAO.siteUrl};
+  return {calc:m("calc"),contratado:k,contrato:m("contrato"),proposta:m("proposta"),checklist:m("checklist"),whatsappAdm:c.whatsappAdm||PADRAO.whatsappAdm,siteUrl:c.siteUrl||PADRAO.siteUrl};
 }
 
 /* ---------- calculadora ---------- */
@@ -175,7 +196,7 @@ function calcular(p){
    propostas, contratos, clientes, parceiros, equipe e financeiro só para o adm.
    Fora dela: modo demonstração no navegador (localStorage). */
 var LS="sm-sistema-v1";
-var COLS_ADM=["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config","time","pedidos"];
+var COLS_ADM=["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config","time","pedidos","orcamentos"];
 var COLS_COLAB=["tarefas","agenda","parceiros","producoes","time"];
 var Store={
   modo:"carregando",db:null,dados:{},ouvintes:[],carregado:{},assinadas:"",
@@ -446,7 +467,8 @@ var PAI={proposta:"propostas",contrato:"contratos",producao:"producoes",revisao:
 SIS.mod={};
 var vista=null;
 function rotaAtual(){return (location.hash||"").slice(1);}
-function trata(h){return /^adm(\/|$)/.test(h)||h==="cadastro-cliente"||h==="cadastro-parceiro"||h==="pedido-proposta"||/(^|&)(access_token|error_description)=/.test(h);}
+var RX_ORC=/^orcamento\/([\w-]{16,40})(?:\?(.*))?$/; /* link de orçamento do parceiro (orcamentoPub) */
+function trata(h){return /^adm(\/|$)/.test(h)||h==="cadastro-cliente"||h==="cadastro-parceiro"||h==="pedido-proposta"||RX_ORC.test(h)||/(^|&)(access_token|error_description)=/.test(h);}
 /* Estilos, fontes dos documentos e módulos só são baixados quando a área restrita abre */
 var extrasP=null;
 function extras(){
@@ -479,6 +501,7 @@ function render(){
   var h=rotaAtual();
   if(h==="cadastro-cliente"||h==="cadastro-parceiro"){vista=null; /* equipe não tem link público: só o adm cadastra membros */SIS.publica(raiz,h);return;}
   if(h==="pedido-proposta"){vista=null;pedidoPub(raiz);return;}
+  if(RX_ORC.test(h)){vista=null;orcamentoPub(raiz,h);return;}
   var ps=h.split("/"),nome=ps[1]||"",id=ps.slice(2).join("/");
   if(!Sessao.papel){telaEntrada(raiz);return;}
   var colab=!ehAdm();
@@ -1199,6 +1222,65 @@ function pedidoPub(raiz){
       btn.disabled=false;st.className="status erro";
       var txt="Olá, Shylton! Quero pedir uma proposta de produção de ambiente.\nNome: "+d.nome+"\nLocal: "+d.local+"\nFinalidade: "+(FINALIDADES[d.finalidade]||"")+"\nAmbientes: "+d.ambientes.map(function(a){return a.nome+(a.m2?" ("+a.m2+" m²)":"");}).join(", ")+"\nData sugerida: "+(dataBR(d.dataSugerida)||"a combinar")+(total?"\nFotos do espaço: mando por aqui.":"");
       st.innerHTML='Não foi possível enviar agora. <a class="lnk" href="'+esc(waLink(PADRAO.whatsappAdm,txt))+'" target="_blank" rel="noopener">'+ikb("whats")+'Mandar o pedido pelo WhatsApp ↗</a>';
+    });
+  });
+}
+
+/* ---------- orçamento do parceiro pelo link (Produções › Parceiros nesta produção › Link para o parceiro) ----------
+   Pedido da Isys (2026-11-15). Cada linha de parceiro da produção tem uma chave secreta; o link é #orcamento/<chave>?e=<empresa>&d=<data>.
+   Sem login o parceiro só ENVIA: o arquivo vai para a pasta privada "arquivos" em orcamentos/<chave>/ e cria um registro em "orcamentos".
+   Quem tem o link não lê nada; o adm vê o orçamento na linha do parceiro com a mesma chave. */
+var TIPOS_ORC={"application/pdf":"pdf","image/jpeg":"jpg","image/png":"png","image/webp":"webp"},MAX_ORC=26214400;
+function orcamentoPub(raiz,h){
+  var mt=RX_ORC.exec(h)||[],chave=mt[1]||"",q=new URLSearchParams(mt[2]||"");
+  var emp=limpo(q.get("e"),80),dia=/^\d{4}-\d{2}-\d{2}$/.test(q.get("d")||"")?q.get("d"):"";
+  raiz.innerHTML='<div class="pub"><header class="pub__topo"><a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, voltar ao site">'+logoSVG()+'</a><a class="lnk" href="#inicio">Voltar ao site</a></header>'+
+    '<div class="sis-cab"><h1>'+ikb("propostas")+'Envio de orçamento</h1></div>'+
+    '<form id="form-pub" novalidate>'+
+      '<section class="sis-sec"><h2>'+ikb("parceiros")+'Orçamento'+(dia?' para a produção de '+esc(dataBR(dia)):'')+'</h2><div class="fgrid">'+
+        campos([{k:"empresa",r:"Empresa",req:1,ac:"organization"}],{empresa:emp})+
+        '<div class="f f--full">Arquivo do orçamento *<div class="pub__orc"><label class="lnk pub__add-foto">'+ikb("mais")+'<span data-orc-rot>Escolher arquivo</span><input class="vh" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-orc-arq></label><span class="nota" data-orc-nome>PDF ou imagem (JPG, PNG ou WEBP), até 25 MB.</span></div></div>'+
+        campos([{k:"obs",r:"Observação",t:"area",full:1,ph:"Ex.: validade, prazo de entrega, condições de pagamento"}],{})+
+      '</div></section>'+
+      '<div class="pub__envio"><button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar orçamento</button><p class="status" id="pb-status" role="status"></p></div></form>'+
+    '<section class="sis-sec" id="pb-ok" hidden></section>'+
+    '<p class="pub__pe">© 2026 Shylton Mavie</p></div>';
+  window.scrollTo(0,0);
+  var form=$("#form-pub",raiz),st=$("#pb-status",raiz),inp=$("[data-orc-arq]",form),arq=null;
+  function erro(t,el){st.className="status erro";st.textContent=t;if(el)el.focus();}
+  inp.addEventListener("change",function(){
+    var f=inp.files&&inp.files[0];if(!f)return;
+    if(!TIPOS_ORC[tipoArquivo(f)]){inp.value="";return erro("Envie o orçamento em PDF ou imagem (JPG, PNG ou WEBP).",inp);}
+    if(f.size>MAX_ORC){inp.value="";return erro("O arquivo passa de 25 MB.",inp);}
+    arq=f;st.className="status";st.textContent="";
+    $("[data-orc-nome]",form).textContent=f.name;$("[data-orc-rot]",form).textContent="Trocar arquivo";
+  });
+  form.addEventListener("submit",function(e){
+    e.preventDefault();
+    var ei=$('[data-k="empresa"]',form),empresa=limpo(ei.value,120);
+    ei.setAttribute("aria-invalid",empresa?"false":"true");
+    if(!empresa)return erro("Informe o nome da empresa.",ei);
+    if(!arq)return erro("Escolha o arquivo do orçamento.",inp);
+    var tipo=tipoArquivo(arq),ext=TIPOS_ORC[tipo];
+    var d={chave:chave,empresa:empresa,obs:limpo($('[data-k="obs"]',form).value,1000),dataProducao:dia,arquivo:{nome:limpo(arq.name,120)||"orcamento."+ext,tam:arq.size},enviadoEm:agoraISO()};
+    var btn=$("button[type=submit]",form);btn.disabled=true;st.className="status";st.textContent="Enviando…";
+    preparar().then(function(){
+      var pub=Sessao.supa&&Sessao.conta!=="adm";
+      if(!pub&&Store.modo==="db"&&Sessao.conta!=="adm")throw {code:"sem_permissao"};
+      if(!(Sessao.supa&&SB)){d.arquivo.nota="só o nome (modo demonstração)";return Store.salvar("orcamentos",null,d);}
+      var caminho="orcamentos/"+chave+"/"+uid()+"."+ext;
+      return SB.storage.from("arquivos").upload(caminho,arq,{contentType:tipo,upsert:false}).then(okSb).then(function(){
+        d.arquivo.id="sb:"+caminho;d.arquivo.tipo=tipo;
+        return pub?SB.from(TAB).insert({colecao:"orcamentos",id:uid(),dados:d}).then(okSb):Store.salvar("orcamentos",null,d);
+      });
+    }).then(function(){
+      form.hidden=true;var ok=$("#pb-ok",raiz);ok.hidden=false;
+      ok.innerHTML='<h2>'+ikb("ok")+'Orçamento enviado</h2><div><p>Obrigado! O orçamento já está com o Shylton. Para mandar outro arquivo, abra este mesmo link de novo.</p>'+
+        (Store.modo==="local"?'<p class="nota">Demonstração: o orçamento foi salvo na área restrita deste navegador.</p>':'')+'</div>';
+      window.scrollTo(0,0);
+    },function(){
+      btn.disabled=false;st.className="status erro";
+      st.innerHTML='Não foi possível enviar agora. <a class="lnk" href="'+esc(waLink(PADRAO.whatsappAdm,"Olá, Shylton! Sou da "+empresa+" e vou mandar o orçamento"+(dia?" da produção de "+dataBR(dia):"")+" por aqui."))+'" target="_blank" rel="noopener">'+ikb("whats")+'Mandar pelo WhatsApp ↗</a>';
     });
   });
 }

@@ -323,9 +323,41 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .kcard__pe button:hover{color:var(--tinta);background:var(--hover)}
 .kcol--feita .kcard h3{text-decoration:line-through;text-decoration-color:var(--tinta-2)}
 .kcard__mov{display:flex;align-items:center;flex:none}
+/* Checklist de conferência da produção (2026-11-15) */
+.conf__etapa + .conf__etapa{margin-top:var(--s-16)}
+.conf__etapa h3{font-size:var(--t-mini);font-weight:600;letter-spacing:var(--ls-mini);text-transform:uppercase;color:var(--tinta-2);margin-bottom:var(--s-4)}
+.conf__item{display:flex;align-items:center;justify-content:space-between;gap:var(--s-8);padding:var(--s-4) 0;border-top:1px solid var(--borda-card)}
+.conf__item .chk{flex:1;align-items:flex-start;padding-block:var(--s-4)}
+.conf__item .chk input{margin-top:2px}
+.conf__item .chk small{display:block;font-size:var(--t-leg);color:var(--tinta-2)}
+.conf__item.feito .conf__txt{color:var(--tinta-2);text-decoration:line-through;text-decoration-color:var(--tinta-2)}
+.conf__item .rep__x{flex:none;min-width:var(--toque);justify-content:center}
+.conf__novo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:var(--s-12);align-items:end;margin-top:var(--s-16)}
+.conf__novo .btn{grid-column:1/-1;justify-self:start}
+@media (max-width:560px){.conf__novo{grid-template-columns:minmax(0,1fr)}}
+/* Bloco recolhível (checklist da produção): o título inteiro abre e fecha */
+.recolher{display:flex;align-items:center;width:100%;min-height:var(--toque);margin:calc(var(--s-12) * -1) 0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.recolher > .ik{flex:none;width:18px;height:18px;margin:-3px var(--s-8) 0 0;color:var(--tinta-2)}
+.recolher__seta{display:inline-flex;margin-left:auto;padding-left:var(--s-12);color:var(--tinta-2);transition:transform var(--rapido)}
+.recolher__seta .ik{width:16px;height:16px}
+.recolher[aria-expanded="true"] .recolher__seta{transform:rotate(180deg)}
+.recolher:focus-visible{outline:2px solid var(--tinta);outline-offset:4px}
+.ed__bloco > h2:has(> .recolher[aria-expanded="false"]){margin-bottom:0}
+/* Orçamento do parceiro na produção */
+.orc{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-8) var(--s-16);font-size:var(--t-leg)}
+.orc__arq{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow-wrap:anywhere}
+.orc__env{position:relative;cursor:pointer;min-height:var(--toque)}
+.orc__env input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.orc__env:focus-within{outline:2px solid var(--tinta);outline-offset:2px}
+.orc__rec{flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-4) var(--s-16)}
+.orc__rec .nota{flex:1 1 100%;margin:0}
+.pub__orc{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-8) var(--s-16);overflow-wrap:anywhere;font-size:var(--t-leg);font-weight:400;letter-spacing:normal;text-transform:none;color:var(--tinta)}
+.pub__orc .pub__add-foto{position:relative}
 /* Google Meet na janela da tarefa (2026-11-15): só o aviso, sem link para entrar */
 .t-meet{display:flex;align-items:center;gap:6px;margin-top:var(--s-16)}
 .t-meet .ik{width:16px;height:16px;flex:none}
+.k-google{flex-wrap:wrap;gap:var(--s-4) var(--s-16);margin:0 0 var(--s-16)}
+.k-google > span{flex:1 1 220px}
 .k-nova{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:var(--toque);margin-top:var(--s-12);padding-top:2px;border:1px dashed var(--pedra);border-radius:var(--r-ctl);font-size:var(--t-mini);font-weight:600;letter-spacing:var(--ls-mini);text-transform:uppercase;color:var(--tinta-2);transition:color var(--rapido),border-color var(--rapido),background var(--rapido)}
 .k-nova:hover{color:var(--tinta);border-color:var(--tinta-2);background:var(--branco)}
 @media (max-width:820px){.kanban{grid-template-columns:minmax(0,1fr)}.kcol{min-height:0}}
