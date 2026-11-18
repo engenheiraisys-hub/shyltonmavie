@@ -412,7 +412,8 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .pub__envio{display:flex;flex-direction:column;align-items:flex-start;gap:var(--s-16);padding:var(--s-24) var(--s-32);background:var(--apoio-sis);border:1px solid var(--borda-card);border-radius:var(--r-card)}
 .pub__envio .status:empty,.pub [hidden]{display:none!important}
 .pub .sis-sec > div > p + p{margin-top:var(--s-8)}
-.pub__pe{margin-top:var(--s-32);font-size:var(--t-leg);color:var(--tinta-2)}
+.pub__pe{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--s-8) var(--s-16);margin-top:var(--s-32);font-size:var(--t-leg);color:var(--tinta-2)}
+.pub__pe a{margin-left:auto} /* lado oposto ao ©, como no rodapé do site */
 .pub__priv{margin-top:calc(var(--s-8) * -1);font-size:var(--t-leg);color:var(--tinta-2)}
 .pub__pe a,.pub__priv a{text-decoration:underline;text-underline-offset:3px}
 .pub__pe a:hover,.pub__priv a:hover{color:var(--tinta)}

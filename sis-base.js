@@ -1098,7 +1098,7 @@ var UFS="AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC
 /* Cadastro pelo link: mesmo visual da área restrita (página branca, blocos cinza com ícone no título,
    campos .fgrid alinhados, botão escuro); sem texto de apresentação (pedido da Isys, 2026-11-09) */
 /* Política de Privacidade e Termos de Uso (2026-11-17): abrem em outra aba para não perder o que já foi preenchido */
-var PE_PUB='<p class="pub__pe">© 2026 Shylton Mavie · <a href="#privacidade" target="_blank" rel="noopener">Privacidade e Termos de Uso</a></p>';
+var PE_PUB='<p class="pub__pe"><span>© 2026 Shylton Mavie</span><a href="#privacidade" target="_blank" rel="noopener">Privacidade e Termos de Uso</a></p>';
 var NOTA_PRIV='<p class="pub__priv">Veja como cuidamos dos seus dados em <a href="#politica-de-privacidade" target="_blank" rel="noopener">Privacidade</a>.</p>';
 function blocoPub(ic,tit,lista){return '<section class="sis-sec"><h2>'+ikb(ic)+esc(tit)+'</h2><div class="fgrid">'+campos(lista,{})+'</div></section>';}
 var END_PUB=[{k:"cep",r:"CEP",req:1,ac:"postal-code"},{k:"endereco",r:"Rua / avenida",req:1,ac:"address-line1"},{k:"numero",r:"Número",req:1},{k:"complemento",r:"Complemento (se houver)"},

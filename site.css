@@ -284,10 +284,10 @@ html:has(#v-inicio:not([hidden])){scroll-snap-type:y mandatory}
 .insta:hover{color:var(--tinta-forte)}
 
 /* ---------- Rodapé ---------- */
-.rodape{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:var(--col);padding:var(--s-24) var(--g-r) var(--s-32) var(--g-l);border-top:1px solid var(--linha);font-size:var(--t-mini);color:var(--tinta-2)}
+.rodape{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--s-8) var(--col);padding:var(--s-24) var(--g-r) var(--s-32) var(--g-l);border-top:1px solid var(--linha);font-size:var(--t-mini);color:var(--tinta-2)}
 .rodape__adm{text-decoration:underline;text-underline-offset:3px;transition:color var(--rapido)}
 .rodape__adm:hover{color:var(--tinta)}
-.rodape__links{display:flex;flex-wrap:wrap;gap:0 var(--s-24)}
+.rodape__links{display:flex;flex-wrap:wrap;gap:0 var(--s-24);margin-left:auto} /* lado oposto ao © (pedido da Isys, 2026-11-18); se quebrar a linha, continua à direita */
 .rodape__links a{display:inline-flex;align-items:center;min-height:24px;text-decoration:underline;text-underline-offset:3px;transition:color var(--rapido)} /* alvo de 24 px (WCAG 2.2) */
 .rodape__links a:hover{color:var(--tinta)}
 .contato__nota{font-size:var(--t-leg);line-height:1.5;color:var(--tinta-2)}
