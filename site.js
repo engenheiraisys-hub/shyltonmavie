@@ -48,6 +48,14 @@
       [].slice.call(l.children).forEach(function(li){var c=li.cloneNode(true);c.setAttribute("aria-hidden","true");l.appendChild(c);});
       l.classList.add("anda");if(ro)ro.observe(l);
     });
+    /* Celular (pedido da Isys, 2026-11-18): com o dedo na faixa ela para, como o mouse em cima no computador; soltou, volta a andar.
+       Deslizar para rolar a página cancela o toque (pointercancel) e a faixa segue andando. */
+    [].forEach.call(document.querySelectorAll(".marcas__faixa"),function(f){
+      var l=f.querySelector(".marcas__lista");
+      f.addEventListener("pointerdown",function(e){if(e.pointerType!=="mouse")l.classList.add("parada");});
+      ["pointerup","pointercancel","pointerleave"].forEach(function(t){f.addEventListener(t,function(e){if(e.pointerType!=="mouse")l.classList.remove("parada");});});
+      f.addEventListener("contextmenu",function(e){if(l.classList.contains("parada"))e.preventDefault();}); /* segurar não abre o menu "salvar imagem" */
+    });
   })();
 
   // Início: uma foto por tela; a rolagem troca a foto
