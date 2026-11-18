@@ -413,6 +413,9 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .pub__envio .status:empty,.pub [hidden]{display:none!important}
 .pub .sis-sec > div > p + p{margin-top:var(--s-8)}
 .pub__pe{margin-top:var(--s-32);font-size:var(--t-leg);color:var(--tinta-2)}
+.pub__priv{margin-top:calc(var(--s-8) * -1);font-size:var(--t-leg);color:var(--tinta-2)}
+.pub__pe a,.pub__priv a{text-decoration:underline;text-underline-offset:3px}
+.pub__pe a:hover,.pub__priv a:hover{color:var(--tinta)}
 .pub__amb + .pub__amb{margin-top:var(--s-24);padding-top:var(--s-16);border-top:1px solid var(--borda-card)}
 .pub__amb-topo{display:flex;align-items:center;justify-content:space-between;gap:var(--s-16);min-height:28px;font-size:var(--t-ui);font-weight:600;color:var(--tinta)}
 .pub__amb-topo .lnk{font-size:var(--t-leg);font-weight:400}

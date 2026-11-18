@@ -1097,6 +1097,9 @@ SIS.ligarTipoCliente=function(d){ligarTipoCliente(d,false);};
 var UFS="AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
 /* Cadastro pelo link: mesmo visual da área restrita (página branca, blocos cinza com ícone no título,
    campos .fgrid alinhados, botão escuro); sem texto de apresentação (pedido da Isys, 2026-11-09) */
+/* Política de Privacidade e Termos de Uso (2026-11-17): abrem em outra aba para não perder o que já foi preenchido */
+var PE_PUB='<p class="pub__pe">© 2026 Shylton Mavie · <a href="#privacidade" target="_blank" rel="noopener">Privacidade e Termos de Uso</a></p>';
+var NOTA_PRIV='<p class="pub__priv">Veja como cuidamos dos seus dados em <a href="#politica-de-privacidade" target="_blank" rel="noopener">Privacidade</a>.</p>';
 function blocoPub(ic,tit,lista){return '<section class="sis-sec"><h2>'+ikb(ic)+esc(tit)+'</h2><div class="fgrid">'+campos(lista,{})+'</div></section>';}
 var END_PUB=[{k:"cep",r:"CEP",req:1,ac:"postal-code"},{k:"endereco",r:"Rua / avenida",req:1,ac:"address-line1"},{k:"numero",r:"Número",req:1},{k:"complemento",r:"Complemento (se houver)"},
   {k:"bairro",r:"Bairro",req:1},{k:"cidade",r:"Cidade",req:1,ac:"address-level2"},{k:"uf",r:"Estado",t:"select",o:[["","—"]].concat(UFS),req:1}];
@@ -1125,9 +1128,9 @@ SIS.publica=function(raiz,h){
   raiz.innerHTML='<div class="pub"><header class="pub__topo"><a href="#inicio" class="barra__logo" aria-label="Shylton Mavie, voltar ao site">'+logoSVG()+'</a><a class="lnk" href="#inicio">Voltar ao site</a></header>'+
     '<div class="sis-cab"><h1>'+ikb(col==="parceiros"?"parceiros":cli?"clientes":"equipe")+(cli?"Cadastro de cliente":parc?"Cadastro de parceiro e fornecedor":"Cadastro da equipe")+'</h1></div>'+
     '<form id="form-pub" novalidate>'+corpo+
-      '<div class="pub__envio"><label class="chk"><input type="checkbox" id="pb-lgpd" required> '+lgpd+'</label><button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar cadastro</button><p class="status" id="pb-status" role="status"></p></div></form>'+
+      '<div class="pub__envio"><label class="chk"><input type="checkbox" id="pb-lgpd" required> '+lgpd+'</label>'+NOTA_PRIV+'<button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar cadastro</button><p class="status" id="pb-status" role="status"></p></div></form>'+
     '<section class="sis-sec" id="pb-ok" hidden></section>'+
-    '<p class="pub__pe">© 2026 Shylton Mavie</p></div>';
+    PE_PUB+'</div>';
   window.scrollTo(0,0);
   var form=$("#form-pub",raiz),st=$("#pb-status",raiz);
   if(cli)ligarTipoCliente(form,true);
@@ -1211,9 +1214,9 @@ function pedidoPub(raiz){
       '<section class="sis-sec"><h2>'+ikb("ambiente")+'Ambientes</h2><div><div id="pb-ambs">'+ambPub(1)+'</div><button type="button" class="lnk pub__mais" data-add-amb>'+ikb("mais")+'Adicionar ambiente</button></div></section>'+
       '<section class="sis-sec"><h2>'+ikb("foto")+'Fotos do espaço</h2><div class="pub__fotos" id="pb-fotos"><p class="nota" data-fotos-info>Opcional, até '+MAX_FOTOS+' fotos.</p><div class="pub__minis" data-minis></div>'+
         '<label class="lnk pub__add-foto">'+ikb("foto")+'<span>Adicionar fotos</span><input class="vh" type="file" accept="image/*" multiple data-fotos></label></div></section>'+
-      '<div class="pub__envio"><label class="chk"><input type="checkbox" id="pb-lgpd" required> Autorizo o uso destes dados para a proposta e o contato sobre o serviço (LGPD).</label><button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar pedido</button><p class="status" id="pb-status" role="status"></p></div></form>'+
+      '<div class="pub__envio"><label class="chk"><input type="checkbox" id="pb-lgpd" required> Autorizo o uso destes dados para a proposta e o contato sobre o serviço (LGPD).</label>'+NOTA_PRIV+'<button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar pedido</button><p class="status" id="pb-status" role="status"></p></div></form>'+
     '<section class="sis-sec" id="pb-ok" hidden></section>'+
-    '<p class="pub__pe">© 2026 Shylton Mavie</p></div>';
+    PE_PUB+'</div>';
   window.scrollTo(0,0);
   var form=$("#form-pub",raiz),st=$("#pb-status",raiz),caixa=$("#pb-ambs",raiz);
   function renum(){$$("[data-amb]",caixa).forEach(function(a,i){$(".pub__amb-topo span",a).textContent="Ambiente "+(i+1);});}
@@ -1301,7 +1304,7 @@ function orcamentoPub(raiz,h){
       '</div></section>'+
       '<div class="pub__envio"><button type="submit" class="btn btn--escuro">'+ikb("envio")+'Enviar orçamento</button><p class="status" id="pb-status" role="status"></p></div></form>'+
     '<section class="sis-sec" id="pb-ok" hidden></section>'+
-    '<p class="pub__pe">© 2026 Shylton Mavie</p></div>';
+    PE_PUB+'</div>';
   window.scrollTo(0,0);
   var form=$("#form-pub",raiz),st=$("#pb-status",raiz),inp=$("[data-orc-arq]",form),arq=null;
   function erro(t,el){st.className="status erro";st.textContent=t;if(el)el.focus();}

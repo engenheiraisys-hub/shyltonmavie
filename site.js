@@ -164,8 +164,10 @@
   addEventListener("resize",function(){if(!menu.hidden)posMenu();});
 
   // Rotas
-  var VIEWS=["inicio","producoes","atividades","sobre","contato"];
-  var TITULOS={inicio:"",producoes:"Produções",atividades:"Atividades",sobre:"Sobre",contato:"Contato"};
+  var VIEWS=["inicio","producoes","atividades","sobre","contato","privacidade"];
+  var TITULOS={inicio:"",producoes:"Produções",atividades:"Atividades",sobre:"Sobre",contato:"Contato",privacidade:"Privacidade e Termos de Uso"};
+  /* endereços que abrem uma parte da página de Privacidade e Termos de Uso */
+  var PARTES={termos:"parte-termos","politica-de-privacidade":"parte-privacidade"};
   function titulo(t){document.title=t?t+" · Shylton Mavie":"Shylton Mavie · Arquiteto e produtor de ambientes";}
   function mostrar(nome){
     if(TITULOS[nome]!=null)titulo(TITULOS[nome]);
@@ -183,6 +185,7 @@
       titulo(/^cadastro-/.test(h)?"Cadastro":"Área restrita");SIS.mostrar();window.scrollTo(0,0);return;
     }
     if(window.SIS)SIS.esconder();
+    if(PARTES[h]){mostrar("privacidade");var parte=document.getElementById(PARTES[h]);if(parte){parte.scrollIntoView();aoRolar();return;}}
     if(VIEWS.indexOf(h)>=0){mostrar(h);if(h==="producoes")desenharProjetos();}
     else{var p=porSlug(h);if(p){desenharProjeto(p);mostrar("projeto");titulo(p.nome);}else{mostrar("inicio");}}
     window.scrollTo(0,0);aoRolar();

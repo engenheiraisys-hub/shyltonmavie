@@ -287,6 +287,29 @@ html:has(#v-inicio:not([hidden])){scroll-snap-type:y mandatory}
 .rodape{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:var(--col);padding:var(--s-24) var(--g-r) var(--s-32) var(--g-l);border-top:1px solid var(--linha);font-size:var(--t-mini);color:var(--tinta-2)}
 .rodape__adm{text-decoration:underline;text-underline-offset:3px;transition:color var(--rapido)}
 .rodape__adm:hover{color:var(--tinta)}
+.rodape__links{display:flex;flex-wrap:wrap;gap:0 var(--s-24)}
+.rodape__links a{display:inline-flex;align-items:center;min-height:24px;text-decoration:underline;text-underline-offset:3px;transition:color var(--rapido)} /* alvo de 24 px (WCAG 2.2) */
+.rodape__links a:hover{color:var(--tinta)}
+.contato__nota{font-size:var(--t-leg);line-height:1.5;color:var(--tinta-2)}
+.contato__nota a,.legal a{text-decoration:underline;text-underline-offset:3px;transition:color var(--rapido)}
+.contato__nota a:hover{color:var(--tinta)}
+
+/* ---------- Política de Privacidade e Termos de Uso (2026-11-17): texto longo, coluna de leitura ---------- */
+.legal{max-width:calc(var(--largura-texto) + var(--g-l) + var(--g-r));margin-inline:auto;padding:0 var(--g-r) var(--s-64) var(--g-l);font-size:var(--t-corpo);line-height:var(--lh);color:var(--tinta)}
+.legal__data{font-size:var(--t-leg);color:var(--tinta-2)}
+/* página única (2026-11-17): h2 = Quem somos, as duas partes e Mudanças; h3 = itens de cada parte */
+.legal h2,.legal h3{margin:var(--s-48) 0 var(--s-12);font-size:var(--t-ui);font-weight:400;line-height:var(--lh-tit);letter-spacing:var(--ls-tit);text-transform:uppercase;color:var(--tinta-forte)}
+.legal h3{margin-top:var(--s-32);text-transform:none;letter-spacing:0;font-weight:500;font-size:var(--t-corpo)}
+.legal .legal__parte{margin-top:var(--s-64);padding-top:var(--s-32);border-top:1px solid var(--linha);font-size:var(--t-pag);font-weight:var(--w-leve);letter-spacing:var(--ls-pag);scroll-margin-top:var(--s-64)}
+.legal__sumario{display:flex;flex-wrap:wrap;gap:var(--s-8) var(--s-24);margin-top:var(--s-24);font-size:var(--t-ui)}
+.legal__sumario a{display:inline-flex;align-items:center;min-height:var(--toque)}
+.legal p + p,.legal p + ul,.legal ul + p,.legal__data + p{margin-top:var(--s-12)}
+.legal__fim{margin-top:var(--s-48) !important;font-size:var(--t-leg);color:var(--tinta-2)}
+.legal ul{padding-left:1.25em;list-style:disc}
+.legal li + li{margin-top:var(--s-8)}
+.legal strong{font-weight:500;color:var(--tinta-forte)}
+.legal a:hover{color:var(--tinta-forte)}
+.legal a[href^="https://wa.me"]{white-space:nowrap} /* telefone sem quebrar no meio */
 
 /* ---------- Menu: lista suspensa sob os três traços (posição calculada no script) ---------- */
 .menu{position:fixed;z-index:50;top:0;right:0;min-width:184px;padding-block:var(--s-8);background:var(--papel);border:1px solid var(--linha);animation:entra var(--rapido) ease both}
