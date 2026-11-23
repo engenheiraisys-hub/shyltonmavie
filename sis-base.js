@@ -927,6 +927,7 @@ function modalForm(o){
     '<button type="button" class="btn btn--escuro" data-salvar>'+ikb(soma?"mais":"salvar")+esc(rot.replace(/^\+\s*/,""))+'</button>';
   var d=modal({sobre:o.sobre,ico:o.ico,titulo:o.titulo,corpo:(o.antes||"")+'<div class="fgrid">'+campos(o.campos,o.dados)+'</div>'+(o.depois||""),pe:pe});
   if(o.aoAbrir)o.aoAbrir(d);
+  ligarCep(d); /* janelas com CEP (cliente, parceiro) preenchem o endereço */
   $("[data-salvar]",d).addEventListener("click",function(){
     var corpo=$(".modal__corpo",d);if(!validar(corpo))return;
     var v=lerCampos(corpo),b=this;b.disabled=true;
@@ -1106,15 +1107,15 @@ function ligarPedido(){
   });
 }
 
-/* Tipos de cliente (pedido da Isys, 2026-11-15): pessoa física, loja ou escritório de arquitetura.
-   Loja e escritório são pessoa jurídica no contrato (CNPJ + representante legal).
-   "PJ" é o tipo antigo ("Empresa"): continua valendo como pessoa jurídica até alguém escolher loja ou escritório. */
-var TIPOS_CLI=[["PF","Pessoa física"],["loja","Loja"],["escritorio","Escritório de arquitetura"]];
+/* Tipos de cliente: pessoa física ou pessoa jurídica (2026-11-23, pedido da Isys: "trocar para PF e PJ"; de 15/11 a 23/11 eram
+   loja e escritório de arquitetura). "loja" e "escritorio" já gravados continuam valendo como pessoa jurídica: tipoCli converte ao abrir.
+   Pessoa jurídica no contrato = CNPJ + representante legal. */
+var TIPOS_CLI=[["PF","Pessoa física"],["PJ","Pessoa jurídica"]];
 function ehPJ(t){return t==="PJ"||t==="loja"||t==="escritorio";}
-function nomeTipoCli(t){if(t==="PJ")return "Empresa (sem tipo)";var x=TIPOS_CLI.filter(function(o){return o[0]===t;})[0];return x?x[1]:"Pessoa física";}
-function opcoesTipoCli(atual){return atual==="PJ"?TIPOS_CLI.concat([["PJ","Empresa (escolha loja ou escritório)"]]):TIPOS_CLI;}
+function tipoCli(t){return ehPJ(t)?"PJ":"PF";} /* tipo desconhecido conta como pessoa física, como no contrato */
+function nomeTipoCli(t){return ehPJ(t)?"Pessoa jurídica":"Pessoa física";}
 /* Campos que dependem do tipo (pedido da Isys, 2026-11-09/15), no Novo cliente/cadastro e no formulário do link:
-   loja e escritório mostram representante legal e CPF dele; pessoa física mostra RG, nacionalidade, estado civil e profissão.
+   pessoa jurídica mostra representante legal e CPF dele; pessoa física mostra RG, nacionalidade, estado civil e profissão.
    obrig=true (formulário público): os campos que aparecem são obrigatórios; os escondidos não são enviados. */
 var SO_PJ=["representante","repCpf"],SO_PF=["rg","nacionalidade","estadoCivil","profissao"];
 function ligarTipoCliente(raiz,obrig){
@@ -1129,6 +1130,33 @@ function ligarTipoCliente(raiz,obrig){
   sel.addEventListener("change",aplicar);aplicar();
 }
 SIS.ligarTipoCliente=function(d){ligarTipoCliente(d,false);};
+/* CEP preenche o endereço (2026-11-23, pedido da Isys): com 8 números busca no ViaCEP e preenche rua, bairro, cidade e estado;
+   o cursor vai para o primeiro que falta (normalmente o Número). Vale no cadastro pelo link e nas janelas de cliente e parceiro.
+   Só muda campos ao digitar o CEP (abrir um cadastro não mexe em nada). CEP inexistente ou sem internet: aviso e preenchimento à mão. */
+function ligarCep(raiz){
+  var cep=$('[data-k="cep"]',raiz);if(!cep||cep.getAttribute("data-cep"))return;
+  cep.setAttribute("data-cep","1");cep.setAttribute("inputmode","numeric");cep.setAttribute("maxlength","9");
+  var ultimo="";
+  function campo(k){return $('[data-k="'+k+'"]',raiz);}
+  function por(k,v){var i=campo(k);if(!i)return;
+    if(v){i.value=v;i.setAttribute("data-do-cep","1");i.setAttribute("aria-invalid","false");}
+    else if(i.getAttribute("data-do-cep")){i.value="";i.removeAttribute("data-do-cep");} /* CEP trocado: limpa só o que veio do CEP anterior */
+  }
+  function buscar(){
+    var n=cep.value.replace(/\D/g,"").slice(0,8);
+    if(n.length!==8){ultimo="";return;}
+    if(cep.value!==n.slice(0,5)+"-"+n.slice(5))cep.value=n.slice(0,5)+"-"+n.slice(5);
+    if(n===ultimo)return;ultimo=n;
+    fetch("https://viacep.com.br/ws/"+n+"/json/").then(function(r){if(!r.ok)throw r.status;return r.json();}).then(function(d){
+      if(n!==cep.value.replace(/\D/g,""))return; /* o CEP mudou enquanto buscava */
+      if(!d||d.erro){toast("CEP não encontrado. Confira o número ou preencha o endereço.");return;}
+      por("endereco",d.logradouro);por("bairro",d.bairro);por("cidade",d.localidade);por("uf",d.uf);
+      var prox=["endereco","numero","bairro"].map(campo).filter(function(i){return i&&!i.value&&!(i.closest("label")||i).hidden;})[0];
+      if(prox)prox.focus();
+    }).catch(function(){if(n===cep.value.replace(/\D/g,"")){ultimo="";toast("Não foi possível buscar o CEP agora. Preencha o endereço.");}});
+  }
+  cep.addEventListener("input",buscar);
+}
 
 /* ---------- páginas públicas de cadastro (link compartilhável) ---------- */
 var UFS="AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
@@ -1171,6 +1199,7 @@ SIS.publica=function(raiz,h){
   window.scrollTo(0,0);
   var form=$("#form-pub",raiz),st=$("#pb-status",raiz);
   if(cli)ligarTipoCliente(form,true);
+  ligarCep(form);
   form.addEventListener("submit",function(e){
     e.preventDefault();
     var falta=$$("[required]",form).filter(function(x){return x.type==="checkbox"?!x.checked:!String(x.value).trim();});
@@ -1392,7 +1421,7 @@ Object.assign(SIS,{
   sincCliente:sincCliente,clienteLiberado:clienteLiberado,areaClienteDb:areaClienteDb,
   trata:trata,mostrar:mostrar,esconder:esconder,render:render,
   campo:campo,campos:campos,lerCampos:lerCampos,validar:validar,modal:modal,modalForm:modalForm,confirmar:confirmar,fecharModal:fecharModal,erroGravar:erroGravar,
-  TIPOS_CLI:TIPOS_CLI,ehPJ:ehPJ,CATS_PARC:CATS_PARC,nomeTipoCli:nomeTipoCli,opcoesTipoCli:opcoesTipoCli,
+  TIPOS_CLI:TIPOS_CLI,ehPJ:ehPJ,tipoCli:tipoCli,CATS_PARC:CATS_PARC,nomeTipoCli:nomeTipoCli,
   subir:subir,urlArquivo:urlArquivo,linkArq:linkArq,imgArq:imgArq,salvarArquivo:salvarArquivo,logoSVG:logoSVG,
   novaProposta:novaProposta,listaAmbientes:listaAmbientes,msgAdm:msgAdm,msgCliente:msgCliente,ligarPedido:ligarPedido
 });

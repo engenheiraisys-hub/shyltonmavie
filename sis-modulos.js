@@ -271,6 +271,7 @@ M.proposta={render:function(m,id,vista){
         {k:"dias",r:"Prazo de execução (dias)",t:"number"},{k:"ajudantes",r:"Ajudantes",t:"number"}],ed)+'</div></section>'+
       '<section class="ed__bloco"><h2>'+ik("texto")+'Texto da proposta</h2><div class="fgrid">'+S.campos([
         {k:"data",r:"Data da proposta",t:"date"},{k:"pagamento",r:"Forma de pagamento"},
+        {k:"validade",r:"Validade da proposta (dias)",t:"number",ph:"10",ajuda:"Aparece em Próximos passos. O início da produção vem da Data sugerida."},
         {k:"etapas",r:"Etapas",full:1},
         {k:"contexto",r:"Contexto (opcional)",full:1,ph:"Ex.: para o espaço da REVEEV projetado por Manu P.",ajuda:"Completa a frase “Apresentamos as condições para a produção… mencionados na proposta”."},
         {k:"tituloInvest",r:"Título do investimento",full:1,ph:"Ex.: Quarto REVEEV - Manu Pagliosa"},
@@ -536,6 +537,7 @@ var CAMPOS_CLI=[
   {k:"repCpf",r:"CPF do representante"},{k:"origem",r:"Origem",ro:1},{k:"obs",r:"Observações",t:"area",full:1}];
 S.modalCliente=function(id,aoSalvar){
   var c=id?St.copia("clientes",id):{tipo:"PF",origem:"Cadastro manual"};
+  if(c)c.tipo=S.tipoCli(c.tipo); /* loja/escritório antigos abrem como Pessoa jurídica e gravam "PJ" ao salvar */
   var props=id?St.list("propostas").filter(function(p){return p.clienteId===id;}):[],cons=id?St.list("contratos").filter(function(x){return x.clienteId===id;}):[];
   var depois=id?'<div class="ed__bloco" style="margin-top:var(--s-24);padding-bottom:0"><h2>'+ik("propostas")+'Propostas e contratos</h2><div class="acoes">'+
     (props.map(function(p){return '<a class="lnk" href="#adm/proposta/'+esc(p.id)+'">Proposta '+esc(p.num)+'</a>';}).concat(cons.map(function(x){return '<a class="lnk" href="#adm/contrato/'+esc(x.id)+'">Contrato '+esc(x.num)+'</a>';})).join("")||'<span class="nota">Nenhum ainda.</span>')+'</div></div>':'';
@@ -545,8 +547,7 @@ S.modalCliente=function(id,aoSalvar){
   if(id&&S.clienteLiberado(c)){var conv=msgAreaCli(c);
     antes+='<p class="nota t-meet" style="margin-bottom:var(--s-16)">'+ik("clientes")+'<span>Área do cliente liberada para '+esc(c.email)+'. O acesso é em '+esc(linkCadastro("adm"))+': em Primeiro acesso, com este e-mail, cria a senha e vê as próprias produções, com contrato, proposta e orçamentos dos parceiros.'+
       (c.telefone?' <a class="lnk" target="_blank" rel="noopener" href="'+esc(S.waLink(c.telefone,conv))+'">'+ik("whats")+'Avisar pelo WhatsApp ↗</a>':'')+'</span></p>';}
-  /* cliente antigo "Empresa" (PJ): mostra a opção dele até escolherem loja ou escritório */
-  var campos=CAMPOS_CLI.map(function(f){return f.k==="tipo"?Object.assign({},f,{o:S.opcoesTipoCli(c.tipo)}):f;});
+  var campos=CAMPOS_CLI.slice();
   campos.splice(campos.map(function(f){return f.k;}).indexOf("instagram")+1,0,{k:"acessoArea",r:"Área do cliente",t:"select",o:[["nao","Sem acesso"],["sim","Liberado: entra com o e-mail acima"]],ajuda:"Mostra só as produções deste cliente, com contrato, proposta e orçamentos dos parceiros. Valores internos (peças, RT, financeiro) não aparecem."});
   if(!c.acessoArea)c.acessoArea="nao";
   function falhou(e){
@@ -571,8 +572,8 @@ function msgAreaCli(c){
     "Entre em "+linkCadastro("adm")+", toque em Primeiro acesso e crie sua senha com o e-mail "+String(c.email||"").trim()+".";
 }
 var fCli={q:"",ord:"cad",tipo:"todos"};
-/* Filtro por tipo (pedido da Isys, 2026-11-15). Tipo desconhecido conta como pessoa física, como no contrato. */
-function tipoFiltro(c){return c.tipo==="PJ"||c.tipo==="loja"||c.tipo==="escritorio"?c.tipo:"PF";}
+/* Filtro por tipo: Pessoa física / Pessoa jurídica (loja e escritório antigos contam como jurídica) */
+function tipoFiltro(c){return S.tipoCli(c.tipo);}
 /* "Completos" = o contrato sai sem lacunas na qualificação do contratante (mesmas regras do contrato, em S.faltaCliente) */
 function faltaCli(c){return S.faltaCliente?S.faltaCliente(c):(c.doc&&c.endereco&&c.cidade?[]:["dados"]);}
 function dadosOk(c){return !faltaCli(c).length;}
@@ -580,7 +581,7 @@ function faltaTxt(f){return f.length<=3?f.join(", "):f.slice(0,3).join(", ")+" e
 M.clientes={render:function(m,id,vista){
   m.innerHTML=cab("Clientes","Cadastro feito por você ou pelo próprio cliente, pelo link. Toque num cliente para ver os dados, as propostas e os contratos.",'<button type="button" class="btn btn--escuro" data-novo>'+ik("mais")+'Novo cliente</button>')+
     caixaLink("Link de cadastro de novos clientes","cadastro-cliente")+
-    '<div class="sis-barra">'+pilulas([["todos","Todos"]].concat(S.TIPOS_CLI,St.list("clientes").some(function(c){return c.tipo==="PJ";})?[["PJ","Empresa sem tipo"]]:[]),fCli.tipo,"data-tipo","Tipo de cliente")+
+    '<div class="sis-barra">'+pilulas([["todos","Todos"]].concat(S.TIPOS_CLI),fCli.tipo,"data-tipo","Tipo de cliente")+
       '<div class="sis-ord"><span>Ordenar</span>'+pilulas([["cad","Cadastro"],["az","A–Z"]],fCli.ord,"data-ord","Ordenar")+'</div>'+busca(fCli.q,"Buscar cliente…")+'</div><div id="sis-lista"></div>';
   ligarCopiarLink(m);
   ligarPil(m,"data-tipo",function(v){fCli.tipo=v;vista.atualizar();});
@@ -957,7 +958,9 @@ M.producao={
         var p=nomeParceiro(x.parceiroId)||"";
         var d={tipo:"entrada",data:x.dataRT||ed.dataFim||ed.dataInicio||S.hoje(),descricao:"RT · "+(p?p+" · ":"")+(ed.titulo||"produção"),pagador:p,categoria:"RT / comissão",valor:v,producaoId:pid,contratoId:ed.contratoId||"",rtPeca:x.id};
         /* acha o lançamento desta peça (ou um lançado à mão antes, com o mesmo parceiro e valor) */
-        var e=lanc.filter(function(f){return f.rtPeca===x.id;})[0]||lanc.filter(function(f){return !f.rtPeca&&!usados[f.id]&&num(f.valor)===v&&(f.pagador||"")===p;})[0];
+        var e=lanc.filter(function(f){return f.rtPeca===x.id;})[0]||lanc.filter(function(f){return !f.rtPeca&&!f.parcGrupo&&!usados[f.id]&&num(f.valor)===v&&(f.pagador||"")===p;})[0];
+        /* RT parcelada no Financeiro (2026-11-23): as parcelas ficam como estão, sem voltar a ser um lançamento só */
+        if(e&&e.parcGrupo){lanc.forEach(function(f){if(f.parcGrupo===e.parcGrupo)usados[f.id]=1;});return;}
         if(!e){fila.push(["rt-"+pid+"-"+x.id,Object.assign(d,{status:"pendente",forma:"PIX",criadoEm:S.agoraISO()})]);return;}
         usados[e.id]=1;
         if(e.status==="pago"||["data","descricao","pagador","valor","contratoId","rtPeca"].every(function(k){return String(e[k]==null?"":e[k])===String(d[k]);}))return;
@@ -1004,14 +1007,83 @@ function modalFin(id,tipo){
   var f=id?St.copia("financeiro",id):{tipo:tipo||"entrada",data:S.hoje(),status:tipo==="saida"?"pago":"pendente",forma:"PIX",categoria:tipo==="saida"?"Materiais de produção":"Produção"};
   f.categoria=catFin(f.categoria);
   var cons=[["","— nenhum —"]].concat(St.list("contratos").map(function(c){return [c.id,c.num+" · "+(nomeCliente(c.clienteId)||"")];}));
-  S.modalForm({sobre:"Financeiro",titulo:id?"Editar lançamento":(f.tipo==="saida"?"Nova saída":"Nova entrada"),dados:f,salvarRot:id?"Salvar":"+ Adicionar",
-    campos:[{k:"tipo",r:"Tipo",t:"select",o:[["entrada","Entrada"],["saida","Saída"]]},{k:"data",r:"Data",t:"date",req:1},
-      {k:"descricao",r:"Descrição",req:1,full:1},{k:"categoria",r:"Categoria",t:"select",o:CATS_FIN},{k:"valor",r:"Valor (R$)",t:"money",req:1},
-      {k:"status",r:"Status",t:"select",o:S.opcoes("financeiro")},{k:"forma",r:"Forma",t:"select",o:["PIX","Transferência","Dinheiro","Cartão","Boleto"]},
-      {k:"contratoId",r:"Contrato",t:"select",o:cons},{k:"pagador",r:"Quem pagou ou recebeu"},{k:"obs",r:"Observação",t:"area",full:1}],
+  var ehParc=!!f.parcGrupo,par=null;
+  var cs=[{k:"tipo",r:"Tipo",t:"select",o:[["entrada","Entrada"],["saida","Saída"]]},{k:"data",r:"Data",t:"date",req:1},
+      {k:"descricao",r:"Descrição",req:1,full:1},{k:"categoria",r:"Categoria",t:"select",o:CATS_FIN},{k:"valor",r:"Valor (R$)",t:"money",req:1}];
+  /* Parcelado (pedido da Isys, 2026-11-23, ex.: RT em 6x): valor total + número de parcelas + 1ª cobrança → lista de parcelas editável */
+  if(!ehParc)cs.push({k:"parcelado",r:"Parcelado: dividir em várias cobranças",t:"check",full:1},{k:"nParcelas",r:"Número de parcelas",t:"number"});
+  cs.push({k:"status",r:"Status",t:"select",o:S.opcoes("financeiro")},{k:"forma",r:"Forma",t:"select",o:["PIX","Transferência","Dinheiro","Cartão","Boleto"]},
+      {k:"contratoId",r:"Contrato",t:"select",o:cons},{k:"pagador",r:"Quem pagou ou recebeu"},{k:"obs",r:"Observação",t:"area",full:1});
+  S.modalForm({sobre:"Financeiro",titulo:id?"Editar lançamento":(f.tipo==="saida"?"Nova saída":"Nova entrada"),dados:f,salvarRot:id?"Salvar":"+ Adicionar",campos:cs,
+    antes:ehParc?'<p class="nota" style="margin-bottom:var(--s-16)"><b>Parcela '+esc(f.parcela)+' de '+esc(f.parcelas)+'.</b> As mudanças valem só para esta parcela.</p>':'',
+    aoAbrir:function(d){if(!ehParc)par=ligarParcelas(d);},
     /* entrada sem contrato nem produção = recebimento avulso (consultoria, serviços) */
-    aoSalvar:function(v){if(!num(v.valor)){S.toast("Informe um valor.");return false;}var corpo=Object.assign({},f,v);delete corpo.id;corpo.avulso=corpo.tipo==="entrada"&&!corpo.contratoId&&!corpo.producaoId;if(!id)corpo.criadoEm=S.agoraISO();return St.salvar("financeiro",id||null,corpo).then(function(){S.toast("Lançamento salvo.");});},
+    aoSalvar:function(v){
+      var parcelado=!!v.parcelado;delete v.parcelado;delete v.nParcelas;
+      if(!num(v.valor)){S.toast(parcelado?"Informe o valor total.":"Informe um valor.");return false;}
+      if(!parcelado){var corpo=Object.assign({},f,v);delete corpo.id;corpo.avulso=corpo.tipo==="entrada"&&!corpo.contratoId&&!corpo.producaoId;if(!id)corpo.criadoEm=S.agoraISO();return St.salvar("financeiro",id||null,corpo).then(function(){S.toast("Lançamento salvo.");});}
+      var ls=par.linhas(),n=ls.length;
+      if(n<2){S.toast("Informe de 2 a 60 parcelas.");return false;}
+      if(ls.some(function(l){return !l.data||!(num(l.valor)>0);})){S.toast("Confira a data e o valor de cada parcela.");return false;}
+      /* cada parcela é um lançamento; o que já existia vira a 1ª (mesmo id) */
+      var g=S.uid(),fila=ls.map(function(l,i){
+        var c=Object.assign({},f,v,{data:l.data,valor:num(l.valor),status:l.status,descricao:v.descricao+" ("+(i+1)+"/"+n+")",parcGrupo:g,parcela:i+1,parcelas:n});
+        delete c.id;c.avulso=c.tipo==="entrada"&&!c.contratoId&&!c.producaoId;if(!(i===0&&id))c.criadoEm=S.agoraISO();
+        return [i===0?id||null:null,c];
+      });
+      return fila.reduce(function(q,x){return q.then(function(){return St.salvar("financeiro",x[0],x[1]);});},Promise.resolve()).then(function(){S.toast(n+" parcelas salvas.");});
+    },
     aoExcluir:id?function(){return St.excluir("financeiro",id);}:null});
+}
+/* Parcelas na janela do lançamento: ao marcar "Parcelado", Valor vira o total, Data vira a 1ª cobrança e aparece a lista
+   (mensal, mesmo dia; dia 31 cai no último dia do mês; valor = total ÷ parcelas em centavos, a sobra na última).
+   Data, valor e status de cada parcela podem ser mudados (ex.: marcar como Pago as que já foram pagas).
+   Mudar total, número de parcelas ou 1ª data refaz datas e valores (os status ficam). */
+function somaMes(iso,k){
+  var p=String(iso).split("-").map(Number),mo=p[1]-1+k,y=p[0]+Math.floor(mo/12);mo=((mo%12)+12)%12;
+  var ult=new Date(y,mo+1,0).getDate();return y+"-"+("0"+(mo+1)).slice(-2)+"-"+("0"+Math.min(p[2],ult)).slice(-2);
+}
+function ligarParcelas(d){
+  var chk=$('[data-k="parcelado"]',d),nIn=$('[data-k="nParcelas"]',d),vIn=$('[data-k="valor"]',d),dIn=$('[data-k="data"]',d),sIn=$('[data-k="status"]',d);
+  var lN=nIn.closest("label"),lS=sIn.closest("label"),lV=vIn.closest("label"),lD=dIn.closest("label"),rotV=lV.firstChild.nodeValue,rotD=lD.firstChild.nodeValue;
+  var box=document.createElement("div");box.className="parc f--full";box.hidden=true;lN.after(box);
+  nIn.setAttribute("min","2");nIn.setAttribute("max","60");nIn.setAttribute("step","1");nIn.setAttribute("inputmode","numeric");
+  var linhas=[];
+  function gerar(){
+    var n=Math.round(num(nIn.value)),ini=dIn.value||S.hoje(),cent=Math.round(num(vIn.value)*100);
+    if(!(n>=2&&n<=60)){linhas=[];box.innerHTML='<p class="nota">Informe de 2 a 60 parcelas.</p>';return;}
+    var base=Math.round(cent/n),antes=linhas;linhas=[];
+    for(var i=0;i<n;i++)linhas.push({data:somaMes(ini,i),valor:(i<n-1?base:cent-base*(n-1))/100,status:antes[i]?antes[i].status:"pendente"});
+    desenhar();
+  }
+  function desenhar(){
+    var n=linhas.length,sts=[["pendente","Pendente"],["pago","Pago"]];
+    box.innerHTML='<div class="parc__lin parc__cab" aria-hidden="true"><span>Nº</span><span>Data da cobrança</span><span>Valor (R$)</span><span>Status</span></div>'+
+      linhas.map(function(l,i){var q=(i+1)+" de "+n;
+        return '<div class="parc__lin" data-pi="'+i+'"><span class="parc__n">'+(i+1)+'/'+n+'</span>'+
+          '<label class="f"><span class="vh">Data da parcela '+q+'</span><input type="date" data-pq="data" value="'+esc(l.data)+'"></label>'+
+          '<label class="f"><span class="vh">Valor da parcela '+q+'</span><input type="text" inputmode="decimal" data-pq="valor" value="'+esc(S.fmtValor(l.valor))+'"></label>'+
+          '<label class="f"><span class="vh">Status da parcela '+q+'</span><select data-pq="status">'+sts.map(function(o){return '<option value="'+o[0]+'"'+(o[0]===l.status?" selected":"")+'>'+o[1]+'</option>';}).join("")+'</select></label></div>';
+      }).join("")+'<p class="nota parc__soma" aria-live="polite"></p>';
+    somar();
+  }
+  function somar(){
+    var s=linhas.reduce(function(a,l){return a+Math.round(num(l.valor)*100);},0)/100,t=num(vIn.value),p=$(".parc__soma",box);if(!p)return;
+    var pagas=linhas.filter(function(l){return l.status==="pago";}).length;
+    p.innerHTML='Soma das parcelas: <b>'+brl(s)+'</b>'+(pagas?' · '+pagas+(pagas===1?' paga':' pagas'):'')+(Math.abs(s-t)>=0.005?' · <span class="neg">diferente do valor total ('+esc(brl(t))+')</span>':'');
+  }
+  function mostrar(){
+    var on=chk.checked;box.hidden=lN.hidden=!on;lS.hidden=on;
+    lV.firstChild.nodeValue=on?"Valor total (R$) *":rotV;lD.firstChild.nodeValue=on?"Data da 1ª cobrança *":rotD;
+    if(on){if(!nIn.value)nIn.value="2";gerar();}
+  }
+  chk.addEventListener("change",mostrar);
+  [nIn,vIn,dIn].forEach(function(x){x.addEventListener("input",function(){if(chk.checked)gerar();});});
+  box.addEventListener("input",function(e){var t=e.target,k=t.getAttribute("data-pq"),lin=t.closest("[data-pi]");if(!k||!lin)return;
+    var l=linhas[+lin.getAttribute("data-pi")];l[k]=k==="valor"?num(t.value):t.value;somar();});
+  box.addEventListener("change",function(e){var t=e.target;if(t.getAttribute("data-pq")==="valor")t.value=S.fmtValor(num(t.value));});
+  mostrar();
+  return {linhas:function(){return chk.checked?linhas:[];}};
 }
 M.financeiro={render:function(m,id,vista){
   m.innerHTML=cab("Financeiro","Entradas e saídas do escritório. Quando um <b>contrato</b> é marcado como Assinado, o sinal e o saldo entram aqui sozinhos em A receber, com a data de cada recebimento; ao marcar uma como <b>paga</b>, ela passa para Recebido. Recebimentos <b>avulsos</b> (sem contrato) também entram por + Entrada.",

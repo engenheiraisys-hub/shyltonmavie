@@ -12,7 +12,8 @@ var SIMB_V='<svg class="simb" viewBox="0 0 96 148" aria-hidden="true"><path fill
 var NOME="Shylton Mavie";
 /* assinatura horizontal igual à do site: símbolo e nome, sem risco entre eles (pedido da Isys, 2026-11-10);
    proporção do cabeçalho do site: símbolo com 0,9 da altura da letra e espaço de meia letra */
-function assinatura(cl){return '<div class="assina '+(cl||"")+'">'+SIMB_V+'<span>'+NOME+'</span></div>';}
+/* cheio: símbolo de bolinha preenchida (página "obrigado!", pedido da Isys, 2026-11-23) */
+function assinatura(cl,cheio){return '<div class="assina '+(cl||"")+'">'+(cheio?SIMB:SIMB_V)+'<span>'+NOME+'</span></div>';}
 var OBJETIVO={mostra:"qualificar a exposição do projeto e a funcionalidade dos ambientes",foto:"preparar os ambientes para o registro fotográfico do projeto, com composição e acabamento pensados para a câmera",marcas:"apresentar os produtos da marca ou da loja em ambientes que valorizem a exposição e a venda",cliente:"deixar os ambientes prontos para o dia a dia, com identidade, conforto e funcionalidade"};
 function dataProposta(iso){var p=String(iso||"").split("-").map(Number);if(p.length<3||!p[0])return "";return S.pad(p[2])+" / "+S.MESES[p[1]-1].toUpperCase()+" / "+p[0];}
 function telModelo(t){var d=S.soDig(t);if(d.length===13)return "+ "+d.slice(0,2)+" "+d.slice(2,4)+" "+d.slice(4,5)+" "+d.slice(5,9)+"-"+d.slice(9);return t||"";}
@@ -38,7 +39,8 @@ function slidesPortfolio(p,n){
   var sel=portfolioSel(p);if(!sel.length)return "";
   return '<section class="sl sl--abre"><p class="sl__h"><b>'+n+'</b>PORTFÓLIO</p><p class="sl__sub">/ Produções de Shylton Mavie</p></section>'+
     sel.map(function(x){
-      var fs=[x.capa].concat((x.galeria||[]).filter(function(g){return g!==x.capa;})).slice(0,3);
+      /* port = 3 fotos escolhidas para a proposta (2026-11-23: na Forma & Matéria a 2ª da galeria, cortada em coluna, ficava igual à 3ª) */
+      var fs=(x.port&&x.port.length?x.port:[x.capa].concat((x.galeria||[]).filter(function(g){return g!==x.capa;}))).slice(0,3);
       var info=[x.evento||x.local,x.projeto?"Projeto "+x.projeto:"",x.fotos?"Fotos "+x.fotos:""].filter(Boolean).join("  ·  ");
       return '<section class="sl sl--port" role="img" aria-label="'+esc(x.nome)+'"><p class="port__rot">'+SIMB_V+'PORTFÓLIO</p>'+
         '<div class="port__fotos port__fotos--'+fs.length+'">'+fs.map(function(f,i){return fotoPort(f,i?"":x.foco);}).join("")+'</div>'+
@@ -54,7 +56,14 @@ function slidesHTML(p){
   var obs=String(p.observacoes||"").split(/\n+/).map(function(s){return s.trim();}).filter(Boolean);
   var tituloInv=p.tituloInvest||((ambs.join(", ")||"Ambientes")+(cli.empresa?" "+cli.empresa:"")+(cli.nome?" - "+cli.nome:""));
   var intro="Apresentamos as condições para a produção de ambiente dos ambientes mencionados na proposta"+(p.contexto?" "+p.contexto.replace(/\.$/,""):"")+".<br>O objetivo é "+(OBJETIVO[p.finalidade]||OBJETIVO.foto)+".";
-  var port=slidesPortfolio(p,"01"),nInv=port?"02":"01";
+  var port=slidesPortfolio(p,"01"),nInv=port?"02":"01",nPas=port?"03":"02";
+  /* Próximos passos (2026-11-23, pedido da Isys com print de referência; mesmo visual da proposta: abertura como
+     INVESTIMENTO e lista como o Escopo). Validade em dias (padrão 10); início = Data sugerida, se houver. */
+  var val=Math.max(1,Math.round(num(p.validade)||10));
+  var passos='<section class="sl sl--abre"><p class="sl__h"><b>'+nPas+'</b>PRÓXIMOS PASSOS</p><p class="sl__sub">/ Para te ajudar nos próximos passos</p></section>'+
+    '<section class="sl sl--escopo sl--passos"><span class="sl__simb">'+SIMB+'</span><div class="sl__txt"><ul>'+
+      '<li><b>Validade da proposta:</b> '+val+' dia'+(val>1?'s':'')+'</li><li>Dados para cadastro</li><li>Desenvolvimento do contrato</li><li>Assinatura do contrato</li><li>Pagamento</li></ul>'+
+      (p.dataSugerida?'<p><b>Início da produção:</b> '+esc(S.dataBR(p.dataSugerida))+'</p>':'')+'</div></section>';
   return ''+
   '<section class="sl sl--capa"><div class="lock">'+SIMB+'<span>produção</span></div></section>'+
   '<section class="sl sl--marca">'+assinatura()+'<p class="sl__rod">'+SIMB+'/ '+esc(cli.nome||"Cliente")+'<small>Arquiteto, Urbanista e Produtor Shylton Mavie, '+esc(String(p.data||S.hoje()).slice(0,4))+'</small></p></section>'+
@@ -75,7 +84,8 @@ function slidesHTML(p){
   '<section class="sl sl--abre"><p class="sl__h"><b>'+nInv+'</b>INVESTIMENTO</p><p class="sl__sub">/ '+esc(tituloInv)+'</p></section>'+
   '<section class="sl sl--valor">'+assinatura()+'<div class="sl__cen"><p class="k1">PRODUÇÃO</p><span class="pino">'+SIMB_V+'</span><p class="k2">INVESTIMENTO</p><p class="rs">R$'+esc(S.fmtValor(p.valor))+'</p><p class="k3">FORMA DE PAGAMENTO:</p><p class="k4">'+esc(p.pagamento||"")+'</p></div>'+
     '<div class="obs"><h3>OBSERVAÇÕES:</h3>'+obs.map(function(o){return '<p>- '+esc(o)+'</p>';}).join("")+(p.creditos?'<p class="cred">- '+esc(p.creditos)+'</p>':'')+'</div></section>'+
-  '<section class="sl sl--fim"><p class="sl__h">obrigado!</p><div class="sl__ct"><span>Email: '+esc(c.email||"")+'</span><span>'+esc(c.instagram||"")+'</span><span>'+esc(c.cidade||"")+'</span><span>'+esc(telCurto(c.telefone))+'</span></div>'+assinatura("assina--pe")+'</section>';
+  passos+
+  '<section class="sl sl--fim"><p class="sl__h">obrigado!</p><div class="sl__ct"><span>Email: '+esc(c.email||"")+'</span><span>'+esc(c.instagram||"")+'</span><span>'+esc(c.cidade||"")+'</span><span>'+esc(telCurto(c.telefone))+'</span></div>'+assinatura("assina--pe",1)+'</section>';
 }
 function nomeArq(s){return S.normal(s).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,60)||"documento";}
 function carregar(src){
@@ -353,7 +363,7 @@ function faltaCliente(c){
 }
 function qualifContratante(c){
   if(!c)return falta("dados do contratante: escolha um cliente");
-  if(S.ehPJ(c.tipo)){ /* loja ou escritório de arquitetura */
+  if(S.ehPJ(c.tipo)){ /* pessoa jurídica (inclui loja/escritório antigos) */
     return v(c.nome,"razão social")+", pessoa jurídica de direito privado, inscrita no CNPJ sob o nº "+v(c.doc,"CNPJ")+", com sede em "+v(enderecoCli(c),"endereço")+
       ", neste ato representada por "+v(c.representante,"representante legal")+", inscrito(a) no CPF sob o nº "+v(c.repCpf,"CPF do representante")+", e-mail "+v(c.email,"e-mail")+", telefone "+v(c.telefone,"telefone")+".";
   }

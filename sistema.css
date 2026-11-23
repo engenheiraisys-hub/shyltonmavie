@@ -258,6 +258,19 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .rep__lin--peca .f--parc{grid-column:span 2}
 .rep__lin--peca .rep__x{grid-column:1/-1;justify-self:end}
 @media (max-width:560px){.rep__lin--peca{grid-template-columns:repeat(2,minmax(0,1fr))}.rep__lin--peca .f--parc{grid-column:1/-1}}
+/* Parcelas do lançamento no Financeiro (2026-11-23): n/N | data | valor | status; no celular, data na 1ª linha e valor + status embaixo */
+.parc{display:flex;flex-direction:column;gap:var(--s-8)}
+.parc__lin{display:grid;grid-template-columns:44px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr);gap:var(--s-8) var(--s-12);align-items:center}
+.parc__cab{font-size:var(--t-mini);font-weight:600;letter-spacing:var(--ls-mini);text-transform:uppercase;color:var(--tinta-2)}
+.parc__n{font-size:var(--t-ui);color:var(--tinta-2);font-variant-numeric:tabular-nums}
+.parc .f{gap:0}
+.parc__soma{margin-top:var(--s-4)}
+@media (max-width:560px){
+  .parc__cab{display:none}
+  .parc__lin{grid-template-columns:36px minmax(0,1fr) minmax(0,1fr);padding-bottom:var(--s-8);border-bottom:1px dashed var(--linha)}
+  .parc__lin > :nth-child(2){grid-column:2/-1}
+  .parc__lin > :nth-child(3){grid-column:2}
+}
 .miniaturas{display:flex;flex-wrap:wrap;gap:var(--s-8);grid-column:1/-1}
 .miniaturas img{width:64px;height:64px;object-fit:cover;background:var(--foto)}
 .miniaturas span{font-size:var(--t-leg);font-weight:400;letter-spacing:0;text-transform:none;color:var(--tinta-2);padding:2px var(--s-8);background:var(--branco)}
@@ -513,6 +526,9 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .sl--escopo .sl__txt b{font-weight:600}
 .sl--escopo ul{list-style:disc;padding:0 0 0 1.4cqw;text-align:center}
 .sl--escopo li{margin:0}
+/* Próximos passos: mesma página do escopo; itens curtos e centrados, sem marcador (como a referência da Isys, 2026-11-23) */
+.sl--passos ul{list-style:none;padding:0}
+.sl--passos .sl__txt ul + p{margin-top:1.6cqw}
 /* 5 investimento (abertura) */
 .sl--abre .sl__h{position:absolute;left:5.6cqw;top:25cqw;font-weight:200;font-size:2.9cqw;letter-spacing:-.05em;line-height:1}
 .sl--abre .sl__h b{font-weight:400;margin-right:1.3cqw;letter-spacing:-.02em}
