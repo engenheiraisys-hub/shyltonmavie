@@ -312,21 +312,26 @@ function caminhoSb(a){
   var id=a&&a.id?String(a.id):"";if(!SB||id.indexOf("sb:")!==0)return "";
   var c=id.slice(3);return /^[\w.-]+(\/[\w.-]+)*$/.test(c)&&c.indexOf("..")<0?c:"";
 }
-function linkArq(a,dentro,cls){
+/* baixar=true (orçamentos): o link BAIXA o arquivo com o nome original (download= do Supabase), em vez de abrir a página
+   com o nome sorteado da pasta (2026-11-23, pedido da Isys: "não consigo baixar"). */
+function linkArq(a,dentro,cls,baixar){
   var u=urlArquivo(a),c=caminhoSb(a);if(!u&&!c)return "";
-  return '<a'+(cls?' class="'+cls+'"':'')+' href="'+esc(u||"#")+'"'+(c?' data-sb="'+esc(c)+'"':'')+' target="_blank" rel="noopener">'+dentro+'</a>';
+  var n=baixar&&c?nomeBaixar(a.nome,c):"";
+  return '<a'+(cls?' class="'+cls+'"':'')+' href="'+esc(u?comNome(u,n):"#")+'"'+(c?' data-sb="'+esc(c)+'"':'')+(n?' data-baixar="'+esc(n)+'" title="Baixar '+esc(n)+'"':'')+' target="_blank" rel="noopener">'+dentro+'</a>';
 }
+function nomeBaixar(nome,c){var n=nomeArq(nome),e=/\.(\w{2,5})$/.exec(c);if(e&&!/\.\w{2,5}$/.test(n))n+="."+e[1];return n;}
+function comNome(url,n){return n?url+(url.indexOf("?")<0?"?":"&")+"download="+encodeURIComponent(n):url;}
 function imgArq(a,alt){var u=urlArquivo(a),c=caminhoSb(a);return '<img'+(u?' src="'+esc(u)+'"':'')+(c?' data-sb="'+esc(c)+'"':'')+' alt="'+esc(alt||"")+'" loading="lazy">';}
 function completarLinks(caminho,url){
-  [].forEach.call(document.querySelectorAll("[data-sb]"),function(el){if(el.getAttribute("data-sb")!==caminho)return;if(el.tagName==="IMG")el.src=url;else el.href=url;});
+  [].forEach.call(document.querySelectorAll("[data-sb]"),function(el){if(el.getAttribute("data-sb")!==caminho)return;if(el.tagName==="IMG")el.src=url;else el.href=comNome(url,el.getAttribute("data-baixar"));});
 }
 document.addEventListener("click",function(e){
   var el=e.target&&e.target.closest?e.target.closest("a[data-sb]"):null;if(!el||!SB)return;
-  var c=el.getAttribute("data-sb"),u=linksArq[c];
-  if(u&&u.url&&u.ate>Date.now()){el.href=u.url;return;}
+  var c=el.getAttribute("data-sb"),n=el.getAttribute("data-baixar"),u=linksArq[c];
+  if(u&&u.url&&u.ate>Date.now()){el.href=comNome(u.url,n);return;}
   e.preventDefault();
   var w=window.open("","_blank"); /* abre a aba já no clique (Safari bloqueia janela aberta depois de esperar) */
-  linkSb(c).then(function(url){if(w){try{w.opener=null;}catch(x){}w.location.href=url;}else window.open(url,"_blank","noopener");},
+  linkSb(c).then(function(url){url=comNome(url,n);if(w){try{w.opener=null;}catch(x){}w.location.href=url;}else window.open(url,"_blank","noopener");},
     function(){if(w)w.close();toast("Não foi possível abrir o arquivo agora. Tente de novo.");});
 });
 
@@ -964,8 +969,9 @@ function urlArquivo(a){
   if(id.indexOf("sb:")===0){var c=caminhoSb(a);return c?urlSupa(c):"";}
   return /^[\w-]{1,80}$/.test(id)?"/_blob/"+id:"";
 }
+function nomeArq(nome){return String(nome||"arquivo").replace(/[\\\/:*?"<>|\u0000-\u001f]+/g,"-").replace(/\s+/g," ").trim().slice(0,150);} /* nome vindo de cadastro de fora não leva caracteres proibidos */
 function salvarArquivo(nome,dados){
-  nome=String(nome||"arquivo").replace(/[\\\/:*?"<>|\u0000-\u001f]+/g,"-").replace(/\s+/g," ").trim().slice(0,150); /* nome vindo de cadastro de fora não leva caracteres proibidos */
+  nome=nomeArq(nome);
   return usar("downloads").then(function(dl){
     if(dl)return dl.save({filename:nome,data:dados}).then(function(){toast("Arquivo pronto: "+nome);return true;},function(e){
       if(e&&e.code==="declined"){toast("Download cancelado.");return false;}

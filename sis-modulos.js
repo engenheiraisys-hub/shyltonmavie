@@ -650,7 +650,7 @@ M.minhas={render:function(m,id,vista){
   m.innerHTML='<p class="vazio-sis" style="margin-top:var(--s-32)">Carregando…</p>';
   function achar(l,i){return i?(l||[]).filter(function(x){return x.id===i;}).map(function(x){return Object.assign({id:x.id},x.dados);})[0]||null:null;}
   function arq(a,extra){
-    var n=esc(a&&a.nome||"orçamento"),l=a?S.linkArq(a,n+' ↗',"lnk"):"";
+    var n=esc(a&&a.nome||"orçamento"),l=a?S.linkArq(a,n+' '+ik("baixar"),"lnk",true):"";
     return '<span class="orc__arq">'+ik("propostas")+'<span>'+(l||n+(St.modo!=="db"?' <small class="nota">· na demonstração só o nome; no site o arquivo abre aqui</small>':a&&a.nota?' <small class="nota">· '+esc(a.nota)+'</small>':''))+
       (extra?' <small class="nota">· '+extra+'</small>':'')+'</span></span>';
   }
@@ -812,7 +812,7 @@ M.producao={
     /* Orçamento de cada parceiro (2026-11-15): o adm anexa (orcamento) ou o parceiro envia pelo link da linha (chave → coleção "orcamentos").
        Só o adm lê a pasta de arquivos e a coleção "orcamentos"; o colaborador vê só o nome do anexado. */
     function arqHTML(o,extra){ /* colaborador não lê a pasta de arquivos: só o nome */
-      return '<span class="orc__arq">'+ik("propostas")+'<span>'+((adm&&S.linkArq(o,esc(o.nome)+' ↗',"lnk"))||esc(o.nome)+(o.nota?' <small class="nota">· '+esc(o.nota)+'</small>':''))+(extra||'')+'</span></span>';
+      return '<span class="orc__arq">'+ik("propostas")+'<span>'+((adm&&S.linkArq(o,esc(o.nome)+' '+ik("baixar"),"lnk",true))||esc(o.nome)+(o.nota?' <small class="nota">· '+esc(o.nota)+'</small>':''))+(extra||'')+'</span></span>';
     }
     function orcHTML(x,i){
       var o=x.orcamento,ver=o?arqHTML(o):"";
