@@ -287,17 +287,48 @@ var assetsSupa={upload:function(f,o){
   return SB.storage.from("arquivos").upload(caminho,f,{contentType:(o&&o.type)||f.type,upsert:false}).then(function(r){okSb(r);return {id:"sb:"+caminho};});
 }};
 var linksArq={};
+function linkSb(caminho){
+  var u=linksArq[caminho];
+  if(u&&u.url&&u.ate>Date.now())return Promise.resolve(u.url);
+  if(u&&u.p)return u.p;
+  var p=SB.storage.from("arquivos").createSignedUrl(caminho,3600).then(function(r){
+    var url=r&&r.data&&r.data.signedUrl;
+    if(!url){delete linksArq[caminho];throw (r&&r.error)||new Error("sem link");}
+    linksArq[caminho]={url:url,ate:Date.now()+3500e3};completarLinks(caminho,url);mudou();return url;
+  },function(e){delete linksArq[caminho];throw e;});
+  linksArq[caminho]={p:p};
+  return p;
+}
 function urlSupa(caminho){
   var u=linksArq[caminho];
   if(u&&u.url&&u.ate>Date.now())return u.url;
-  if(SB&&!(u&&u.pedindo)){
-    linksArq[caminho]={pedindo:true};
-    SB.storage.from("arquivos").createSignedUrl(caminho,3600).then(function(r){
-      if(r&&r.data&&r.data.signedUrl){linksArq[caminho]={url:r.data.signedUrl,ate:Date.now()+3500e3};mudou();}else delete linksArq[caminho];
-    },function(){delete linksArq[caminho];});
-  }
+  if(SB&&!(u&&u.p))linkSb(caminho).catch(function(){});
   return "";
 }
+/* Link de arquivo da pasta privada (2026-11-23, Isys: orçamento enviado pelo link "não consigo baixar"). O endereço assinado chega
+   depois da tela e as telas de edição (produção, proposta) não redesenham sozinhas: o arquivo ficava só com o nome, sem link.
+   Agora o link sai sempre com data-sb; quando o endereço chega, href/src é completado; clicar antes (ou depois de 1 hora) busca na hora. */
+function caminhoSb(a){
+  var id=a&&a.id?String(a.id):"";if(!SB||id.indexOf("sb:")!==0)return "";
+  var c=id.slice(3);return /^[\w.-]+(\/[\w.-]+)*$/.test(c)&&c.indexOf("..")<0?c:"";
+}
+function linkArq(a,dentro,cls){
+  var u=urlArquivo(a),c=caminhoSb(a);if(!u&&!c)return "";
+  return '<a'+(cls?' class="'+cls+'"':'')+' href="'+esc(u||"#")+'"'+(c?' data-sb="'+esc(c)+'"':'')+' target="_blank" rel="noopener">'+dentro+'</a>';
+}
+function imgArq(a,alt){var u=urlArquivo(a),c=caminhoSb(a);return '<img'+(u?' src="'+esc(u)+'"':'')+(c?' data-sb="'+esc(c)+'"':'')+' alt="'+esc(alt||"")+'" loading="lazy">';}
+function completarLinks(caminho,url){
+  [].forEach.call(document.querySelectorAll("[data-sb]"),function(el){if(el.getAttribute("data-sb")!==caminho)return;if(el.tagName==="IMG")el.src=url;else el.href=url;});
+}
+document.addEventListener("click",function(e){
+  var el=e.target&&e.target.closest?e.target.closest("a[data-sb]"):null;if(!el||!SB)return;
+  var c=el.getAttribute("data-sb"),u=linksArq[c];
+  if(u&&u.url&&u.ate>Date.now()){el.href=u.url;return;}
+  e.preventDefault();
+  var w=window.open("","_blank"); /* abre a aba já no clique (Safari bloqueia janela aberta depois de esperar) */
+  linkSb(c).then(function(url){if(w){try{w.opener=null;}catch(x){}w.location.href=url;}else window.open(url,"_blank","noopener");},
+    function(){if(w)w.close();toast("Não foi possível abrir o arquivo agora. Tente de novo.");});
+});
 
 /* ---------- sessão ----------
    Só entra com login (e-mail e senha), como administrador ou colaborador.
@@ -930,7 +961,7 @@ function subir(f){
    viraria código na tela do adm; esses ficam sem link. */
 function urlArquivo(a){
   if(!a||!a.id)return "";var id=String(a.id);
-  if(id.indexOf("sb:")===0){var c=id.slice(3);return /^[\w.-]+(\/[\w.-]+)*$/.test(c)&&c.indexOf("..")<0?urlSupa(c):"";}
+  if(id.indexOf("sb:")===0){var c=caminhoSb(a);return c?urlSupa(c):"";}
   return /^[\w-]{1,80}$/.test(id)?"/_blob/"+id:"";
 }
 function salvarArquivo(nome,dados){
@@ -1356,7 +1387,7 @@ Object.assign(SIS,{
   trata:trata,mostrar:mostrar,esconder:esconder,render:render,
   campo:campo,campos:campos,lerCampos:lerCampos,validar:validar,modal:modal,modalForm:modalForm,confirmar:confirmar,fecharModal:fecharModal,erroGravar:erroGravar,
   TIPOS_CLI:TIPOS_CLI,ehPJ:ehPJ,CATS_PARC:CATS_PARC,nomeTipoCli:nomeTipoCli,opcoesTipoCli:opcoesTipoCli,
-  subir:subir,urlArquivo:urlArquivo,salvarArquivo:salvarArquivo,logoSVG:logoSVG,
+  subir:subir,urlArquivo:urlArquivo,linkArq:linkArq,imgArq:imgArq,salvarArquivo:salvarArquivo,logoSVG:logoSVG,
   novaProposta:novaProposta,listaAmbientes:listaAmbientes,msgAdm:msgAdm,msgCliente:msgCliente,ligarPedido:ligarPedido
 });
 })();

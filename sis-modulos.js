@@ -238,14 +238,14 @@ M.proposta={render:function(m,id,vista){
         '<label class="f">Ambiente<input type="text" data-ak="nome" value="'+esc(a.nome)+'" placeholder="Ex.: sala de estar"></label>'+
         '<label class="f">m²<input type="text" inputmode="decimal" data-ak="m2" value="'+esc(a.m2)+'"></label>'+
         '<button type="button" class="rep__x" data-rem-amb="'+i+'">'+ik("excluir")+'Remover</button>'+
-        (fotos.length?'<div class="miniaturas">'+fotos.map(function(f){var u=esc(S.urlArquivo(f));return u?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="'+esc(f.nome)+'" loading="lazy"></a>':'<span>'+esc(f.nome)+'</span>';}).join("")+'</div>':'')+
+        (fotos.length?'<div class="miniaturas">'+fotos.map(function(f){return S.linkArq(f,S.imgArq(f,f.nome))||'<span>'+esc(f.nome)+'</span>';}).join("")+'</div>':'')+
         (temAssets?'<label class="f f--full" style="grid-column:1/-1">Adicionar fotos<input type="file" accept="image/*" multiple data-fotos="'+i+'"></label>':'')+
       '</div>';
     }).join("");
   }
   function arquivosHTML(){
     var l=ed.arquivos||[];
-    return l.length?'<div class="miniaturas">'+l.map(function(f){var u=esc(S.urlArquivo(f));return u?'<a class="lnk" href="'+u+'" target="_blank" rel="noopener">'+esc(f.nome)+' ↗</a>':'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div>':'<p class="nota">Nenhum arquivo de projeto enviado.</p>';
+    return l.length?'<div class="miniaturas">'+l.map(function(f){return S.linkArq(f,esc(f.nome)+' ↗',"lnk")||'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div>':'<p class="nota">Nenhum arquivo de projeto enviado.</p>';
   }
   function calcHTML(){
     var r=S.calcular(ed);
@@ -263,7 +263,7 @@ M.proposta={render:function(m,id,vista){
         {k:"finalidade",r:"Finalidade",t:"select",o:opcoesFin()},
         {k:"dataSugerida",r:"Data sugerida",t:"date"},{k:"temProjeto",r:"Tem projeto ou arquivo do SketchUp",t:"check",full:1}],ed)+
         '<div class="f f--full">Arquivos de projeto'+arquivosHTML()+'</div>'+
-        ((ed.fotos||[]).length?'<div class="f f--full">Fotos do espaço<div class="miniaturas">'+ed.fotos.map(function(f){var u=esc(S.urlArquivo(f));return u?'<a href="'+u+'" target="_blank" rel="noopener"><img src="'+u+'" alt="'+esc(f.nome)+'" loading="lazy"></a>':'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div></div>':'')+
+        ((ed.fotos||[]).length?'<div class="f f--full">Fotos do espaço<div class="miniaturas">'+ed.fotos.map(function(f){return S.linkArq(f,S.imgArq(f,f.nome))||'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div></div>':'')+
         S.campos([{k:"mensagem",r:"Mensagem do cliente",t:"area",full:1}],ed)+'</div></section>'+
       '<section class="ed__bloco"><h2>'+ik("ambiente")+'Ambientes</h2><div class="rep" id="ed-amb">'+ambHTML()+'</div><p style="margin-top:var(--s-12)"><button type="button" class="lnk" data-add-amb>'+ik("mais")+'Adicionar ambiente</button></p></section>'+
       '<section class="ed__bloco"><h2>'+ik("calc")+'Calculadora<small>valores-base em <a class="lnk" href="#adm/ajustes">Ajustes</a></small></h2><ul class="calc" id="ed-calc">'+calcHTML()+'</ul><div class="fgrid">'+S.campos([
@@ -650,8 +650,8 @@ M.minhas={render:function(m,id,vista){
   m.innerHTML='<p class="vazio-sis" style="margin-top:var(--s-32)">Carregando…</p>';
   function achar(l,i){return i?(l||[]).filter(function(x){return x.id===i;}).map(function(x){return Object.assign({id:x.id},x.dados);})[0]||null:null;}
   function arq(a,extra){
-    var u=a?esc(S.urlArquivo(a)):"",n=esc(a&&a.nome||"orçamento");
-    return '<span class="orc__arq">'+ik("propostas")+'<span>'+(u?'<a class="lnk" href="'+u+'" target="_blank" rel="noopener">'+n+' ↗</a>':n+(St.modo!=="db"?' <small class="nota">· na demonstração só o nome; no site o arquivo abre aqui</small>':a&&a.nota?' <small class="nota">· '+esc(a.nota)+'</small>':''))+
+    var n=esc(a&&a.nome||"orçamento"),l=a?S.linkArq(a,n+' ↗',"lnk"):"";
+    return '<span class="orc__arq">'+ik("propostas")+'<span>'+(l||n+(St.modo!=="db"?' <small class="nota">· na demonstração só o nome; no site o arquivo abre aqui</small>':a&&a.nota?' <small class="nota">· '+esc(a.nota)+'</small>':''))+
       (extra?' <small class="nota">· '+extra+'</small>':'')+'</span></span>';
   }
   function desenhar(){
@@ -811,14 +811,14 @@ M.producao={
     }
     /* Orçamento de cada parceiro (2026-11-15): o adm anexa (orcamento) ou o parceiro envia pelo link da linha (chave → coleção "orcamentos").
        Só o adm lê a pasta de arquivos e a coleção "orcamentos"; o colaborador vê só o nome do anexado. */
-    function arqHTML(o,u,extra){
-      return '<span class="orc__arq">'+ik("propostas")+'<span>'+(u?'<a class="lnk" href="'+u+'" target="_blank" rel="noopener">'+esc(o.nome)+' ↗</a>':esc(o.nome)+(o.nota?' <small class="nota">· '+esc(o.nota)+'</small>':''))+(extra||'')+'</span></span>';
+    function arqHTML(o,extra){ /* colaborador não lê a pasta de arquivos: só o nome */
+      return '<span class="orc__arq">'+ik("propostas")+'<span>'+((adm&&S.linkArq(o,esc(o.nome)+' ↗',"lnk"))||esc(o.nome)+(o.nota?' <small class="nota">· '+esc(o.nota)+'</small>':''))+(extra||'')+'</span></span>';
     }
     function orcHTML(x,i){
-      var o=x.orcamento,ver=o?arqHTML(o,esc(S.urlArquivo(o))):"";
+      var o=x.orcamento,ver=o?arqHTML(o):"";
       if(!adm)return '<div class="orc">'+(o?ver:'<span class="nota">Sem orçamento anexado.</span>')+'</div>';
       var rec=orcRecebidos(x.chave).map(function(r){
-        return '<div class="orc__rec">'+arqHTML(r.arquivo,esc(S.urlArquivo(r.arquivo)),' <small class="nota">· enviado pelo link'+(r.empresa?' por '+esc(r.empresa):'')+' em '+esc(S.dataBR(String(r.enviadoEm||"").slice(0,10)))+'</small>')+
+        return '<div class="orc__rec">'+arqHTML(r.arquivo,' <small class="nota">· enviado pelo link'+(r.empresa?' por '+esc(r.empresa):'')+' em '+esc(S.dataBR(String(r.enviadoEm||"").slice(0,10)))+'</small>')+
           '<button type="button" class="lnk" data-rem-rec="'+esc(r.id)+'">'+ik("excluir")+'Tirar</button>'+(r.obs?'<p class="nota">'+esc(r.obs)+'</p>':'')+'</div>';
       }).join("");
       var p=x.parceiroId?St.get("parceiros",x.parceiroId):null,tel=p&&p.contato,url=x.chave?linkOrc(x):"";
