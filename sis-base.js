@@ -321,6 +321,12 @@ function linkArq(a,dentro,cls,baixar){
 }
 function nomeBaixar(nome,c){var n=nomeArq(nome),e=/\.(\w{2,5})$/.exec(c);if(e&&!/\.\w{2,5}$/.test(n))n+="."+e[1];return n;}
 function comNome(url,n){return n?url+(url.indexOf("?")<0?"?":"&")+"download="+encodeURIComponent(n):url;}
+/* Conteúdo de um arquivo da pasta privada (leitura dos orçamentos, 2026-11-23): só ids gerados pelo próprio site */
+function bytesArq(a){
+  var c=caminhoSb(a);if(!c)return Promise.reject(new Error("sem arquivo guardado"));
+  return linkSb(c).then(function(u){return fetch(u);}).then(function(r){if(!r.ok)throw new Error("arquivo "+r.status);return r.arrayBuffer();});
+}
+function temBytes(a){return !!caminhoSb(a);}
 function imgArq(a,alt){var u=urlArquivo(a),c=caminhoSb(a);return '<img'+(u?' src="'+esc(u)+'"':'')+(c?' data-sb="'+esc(c)+'"':'')+' alt="'+esc(alt||"")+'" loading="lazy">';}
 function completarLinks(caminho,url){
   [].forEach.call(document.querySelectorAll("[data-sb]"),function(el){if(el.getAttribute("data-sb")!==caminho)return;if(el.tagName==="IMG")el.src=url;else el.href=comNome(url,el.getAttribute("data-baixar"));});
@@ -1422,7 +1428,7 @@ Object.assign(SIS,{
   trata:trata,mostrar:mostrar,esconder:esconder,render:render,
   campo:campo,campos:campos,lerCampos:lerCampos,validar:validar,modal:modal,modalForm:modalForm,confirmar:confirmar,fecharModal:fecharModal,erroGravar:erroGravar,
   TIPOS_CLI:TIPOS_CLI,ehPJ:ehPJ,tipoCli:tipoCli,CATS_PARC:CATS_PARC,nomeTipoCli:nomeTipoCli,
-  subir:subir,urlArquivo:urlArquivo,linkArq:linkArq,imgArq:imgArq,salvarArquivo:salvarArquivo,logoSVG:logoSVG,
+  subir:subir,urlArquivo:urlArquivo,linkArq:linkArq,imgArq:imgArq,bytesArq:bytesArq,temBytes:temBytes,salvarArquivo:salvarArquivo,logoSVG:logoSVG,
   novaProposta:novaProposta,listaAmbientes:listaAmbientes,msgAdm:msgAdm,msgCliente:msgCliente,ligarPedido:ligarPedido
 });
 })();

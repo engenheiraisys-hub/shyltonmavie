@@ -24,7 +24,9 @@ var IK={
   tarefa:'<rect x="3.5" y="3.5" width="17" height="17"/><path d="M8 12.5l3 3 5.5-6"/>',
   cal:'<rect x="3.5" y="5" width="17" height="15.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
   lupa:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5l5 5"/>',
-  seta:'<path d="M9.5 6l6 6-6 6"/>'
+  seta:'<path d="M9.5 6l6 6-6 6"/>',
+  entrega:'<path d="M3.5 6.5h10v10h-10z"/><path d="M13.5 10h4l3 3.5v3h-7"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/>',
+  retirada:'<path d="M4 11v9.5h16V11"/><path d="M12 16V3.5M7.5 8l4.5-4.5L16.5 8"/>'
 };
 function ik(n,cl){return '<svg class="'+(cl||"ik")+'" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+(IK[n]||S.ICO[n]||"")+'</svg>';}
 /* Ícone do título da página: o mesmo do item do menu (telas de detalhe usam o da lista) */
@@ -619,8 +621,25 @@ function areaClienteDemo(cid){
   var props=St.list("propostas").filter(function(p){return cons.some(function(c){return c.propostaId===p.id;});});
   return {clienteId:cid,cliente:so(cli),
     producoes:prods.map(function(p){return {id:p.id,dados:{titulo:p.titulo,local:p.local,dataInicio:p.dataInicio,dataFim:p.dataFim,hora:p.hora,status:p.status,contratoId:p.contratoId,clienteId:p.clienteId,
-      parceiros:(p.parceiros||[]).map(function(x){return {nome:nomeParceiro(x.parceiroId)||"Parceiro",papel:x.papel||"",orcamento:x.orcamento||null,recebidos:orcRecebidos(x.chave)};})}};}),
+      parceiros:(p.parceiros||[]).map(function(x){return {nome:nomeParceiro(x.parceiroId)||"Parceiro",papel:x.papel||"",orcamento:x.orcamento||null,recebidos:orcRecebidos(x.chave),entrega:logiCli(x.entrega),retirada:logiCli(x.retirada)};})}};}),
     contratos:cons.map(function(c){return {id:c.id,dados:so(c)};}),propostas:props.map(function(p){return {id:p.id,dados:so(p)};})};
+}
+function logiCli(o){if(!o||typeof o!=="object")return null;var r={};["data","hora","resp","quem"].forEach(function(k){if(o[k])r[k]=String(o[k]);});return r;} /* o mesmo filtro da função area_cliente no banco */
+/* Cronograma do cliente (2026-11-23, pedido da Isys): entrega e retirada de todas as lojas, por data e horário; sem data vai para o fim */
+var DIAS_SEM=["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+function diaSem(iso){var p=String(iso||"").split("-").map(Number);if(p.length<3||!p[0])return "";return DIAS_SEM[new Date(p[0],p[1]-1,p[2]).getDay()];}
+function cronoHTML(p){
+  var ps=p.parceiros||[];
+  if(!ps.length)return '<p class="nota">As lojas desta produção ainda não estão definidas. Quando estiverem, a entrega e a retirada de cada uma aparecem aqui.</p>';
+  return LOGI.map(function(g){
+    var l=ps.map(function(x){var o=x[g[0]]||{};return {loja:x.nome||"Loja",papel:x.papel||"",data:o.data||"",hora:o.hora||"",resp:o.resp||"",quem:o.quem||""};})
+      .sort(function(a,b){return (a.data?0:1)-(b.data?0:1)||a.data.localeCompare(b.data)||(a.hora||"99").localeCompare(b.hora||"99")||a.loja.localeCompare(b.loja,"pt-BR");});
+    return '<section class="sis-sec cli-sec"><h2>'+ik(g[0])+esc(g[1])+'</h2><div class="cli-sec__corpo"><ol class="crono">'+l.map(function(c){
+      var quem=c.resp==="loja"?"Pessoa da loja"+(c.quem?": "+c.quem:""):c.resp==="equipe"?"Equipe Shylton Mavie"+(c.quem?": "+c.quem:""):"Responsável a combinar";
+      return '<li class="crono__item"><div class="crono__quando">'+(c.data?'<b>'+esc(diaSem(c.data))+', '+esc(S.dataBR(c.data).slice(0,5))+'</b><span>'+esc(c.hora||"horário a combinar")+'</span>':'<b>A combinar</b>')+'</div>'+
+        '<div class="crono__oque"><b>'+esc(c.loja)+'</b>'+(c.papel?'<small>'+esc(c.papel)+'</small>':'')+'<span>'+ik("equipe")+esc(quem)+'</span></div></li>';
+    }).join("")+'</ol></div></section>';
+  }).join("");
 }
 function dadosArea(){
   var ch=(S.Sessao.userId||"")+"|"+(S.Sessao.membroId||"");
@@ -647,7 +666,7 @@ function imprimirContrato(ct){
   setTimeout(function(){try{window.print();}catch(e){S.toast("A impressão não está disponível aqui. Abra o contrato em outro navegador.");}setTimeout(fim,1500);},120);
 }
 M.minhas={render:function(m,id,vista){
-  var verCt=false,dados=null;
+  var verCt=false,dados=null,aba="docs"; /* abas da produção: Documentos | Cronograma (entrega e retirada) */
   m.innerHTML='<p class="vazio-sis" style="margin-top:var(--s-32)">Carregando…</p>';
   function achar(l,i){return i?(l||[]).filter(function(x){return x.id===i;}).map(function(x){return Object.assign({id:x.id},x.dados);})[0]||null:null;}
   function arq(a,extra){
@@ -661,7 +680,7 @@ M.minhas={render:function(m,id,vista){
     var prods=(d.producoes||[]).map(function(x){return Object.assign({id:x.id},x.dados);});
     if(!id){
       var nome=String((d.cliente&&d.cliente.nome)||S.Sessao.nome||"").split(/\s+/)[0];
-      m.innerHTML=cab("Suas produções",(nome?"Olá, "+esc(nome)+". ":"")+"Toque numa produção para ver o contrato, a proposta e os orçamentos dos parceiros.","",null)+
+      m.innerHTML=cab("Suas produções",(nome?"Olá, "+esc(nome)+". ":"")+"Toque numa produção para ver o contrato, a proposta, os orçamentos dos parceiros e o cronograma de entrega e retirada.","",null)+
         '<div id="sis-lista">'+tabela([
           {r:"Produção",v:function(p){return esc(p.titulo||"Produção")+(p.local?'<small>'+esc(p.local)+'</small>':'');}},
           {r:"Data",v:function(p){return esc(periodoProd(p));},cl:"sec"},
@@ -674,7 +693,14 @@ M.minhas={render:function(m,id,vista){
     if(!p){m.innerHTML=cab("Produção não encontrada","",'',["#adm/minhas","Suas produções"])+'<p class="vazio-sis">Esta produção não está na sua área.</p>';return;}
     var ct=achar(d.contratos,p.contratoId),pr=ct?achar(d.propostas,ct.propostaId):null;
     var parcs=(p.parceiros||[]).filter(function(x){return x.orcamento||(x.recebidos||[]).length;});
-    m.innerHTML=cab(p.titulo||"Produção",esc(periodoProd(p))+(p.local?" · "+esc(p.local):""),S.tag("producao",p.status),["#adm/minhas","Suas produções"])+
+    var abas='<div class="pil cli-abas" role="group" aria-label="Seções da produção">'+[["docs","doc","Documentos"],["crono","cal","Cronograma"]].map(function(a){
+      return '<button type="button" data-aba-cli="'+a[0]+'" aria-pressed="'+(aba===a[0])+'">'+ik(a[1])+a[2]+'</button>';}).join("")+'</div>';
+    if(aba==="crono"){
+      m.innerHTML=cab(p.titulo||"Produção",esc(periodoProd(p))+(p.local?" · "+esc(p.local):""),S.tag("producao",p.status),["#adm/minhas","Suas produções"])+abas+
+        '<p class="nota cli-crono__intro">Como vai ser a entrega dos produtos de cada loja antes da produção e a retirada depois. Se algo mudar, aparece aqui.</p>'+cronoHTML(p);
+      return;
+    }
+    m.innerHTML=cab(p.titulo||"Produção",esc(periodoProd(p))+(p.local?" · "+esc(p.local):""),S.tag("producao",p.status),["#adm/minhas","Suas produções"])+abas+
       '<section class="sis-sec cli-sec"><h2>'+ik("contratos")+'Contrato</h2><div class="cli-sec__corpo">'+(ct?
         '<p>Contrato <b>'+esc(ct.num||"")+'</b> '+S.tag("contrato",stCon(ct))+'</p>'+
         '<div class="acoes"><button type="button" class="btn btn--escuro" data-ver-ct aria-expanded="'+verCt+'" aria-controls="cli-folha">'+ik(verCt?"acima":"abaixo")+(verCt?'Fechar o contrato':'Ver o contrato')+'</button>'+
@@ -692,6 +718,7 @@ M.minhas={render:function(m,id,vista){
   }
   m.addEventListener("click",function(e){
     var d=dados,p=d&&id?(d.producoes||[]).filter(function(x){return x.id===id;})[0]:null,ct=p?achar(d.contratos,p.dados.contratoId):null;
+    var ba=e.target.closest("[data-aba-cli]");if(ba){aba=ba.getAttribute("data-aba-cli");desenhar();var bf=$('[data-aba-cli="'+aba+'"]',m);if(bf)bf.focus();return;}
     if(e.target.closest("[data-ver-ct]")){verCt=!verCt;desenhar();var b=$("[data-ver-ct]",m);if(b)b.focus();return;}
     if(e.target.closest("[data-ct-pdf]")&&ct){pdfContrato(ct,d.cliente&&d.cliente.nome);return;}
     if(e.target.closest("[data-prop-pdf]")&&ct){var pr=achar(d.propostas,ct.propostaId);if(pr)S.propostaPDF(pr);}
@@ -711,6 +738,7 @@ M.minhas={render:function(m,id,vista){
    para cada produção, onde adm e colaborador marcam e incluem itens (tirar, só o adm).
    Numa produção já salva, marcar/incluir/tirar grava na hora só o checklist, sem mexer no resto da tela. */
 var ETAPAS_CHK=[["antes","Antes da produção"],["montagem","Montagem"],["desmontagem","Desmontagem"]];
+var LOGI=[["entrega","Entrega dos produtos"],["retirada","Retirada dos produtos"]]; /* por loja da produção; o cliente vê no Cronograma */
 function idChk(){return "k"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 /* Orçamento pelo link: chave secreta de 24 caracteres por linha de parceiro da produção */
 function chaveOrc(){var a=new Uint8Array(12);crypto.getRandomValues(a);return Array.prototype.map.call(a,function(b){return ("0"+b.toString(16)).slice(-2);}).join("");}
@@ -808,7 +836,7 @@ M.producao={
     }
     function conOpts(){return [["","— escolha um contrato assinado —"]].concat(St.list("contratos").filter(function(c){return c.status==="assinado"||c.status==="concluido"||c.id===ed.contratoId;}).map(function(c){return [c.id,c.num+" · "+(nomeCliente(c.clienteId)||"sem cliente")];}));}
     function parcHTML(){
-      return ed.parceiros.map(function(x,i){return '<div class="rep__lin" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto" data-pi="'+i+'"><label class="f">Parceiro'+selectHTML('data-pk="parceiroId"',opcoesParceiros(),x.parceiroId)+'</label><label class="f">O que forneceu<input type="text" data-pk="papel" value="'+esc(x.papel)+'" placeholder="Ex.: tapetes e almofadas"></label><button type="button" class="rep__x" data-rem-p="'+i+'">'+ik("excluir")+'Remover</button>'+orcHTML(x,i)+'</div>';}).join("")||'<p class="nota">Nenhum parceiro nesta produção.</p>';
+      return ed.parceiros.map(function(x,i){return '<div class="rep__lin" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto" data-pi="'+i+'"><label class="f">Parceiro'+selectHTML('data-pk="parceiroId"',opcoesParceiros(),x.parceiroId)+'</label><label class="f">O que forneceu<input type="text" data-pk="papel" value="'+esc(x.papel)+'" placeholder="Ex.: tapetes e almofadas"></label><button type="button" class="rep__x" data-rem-p="'+i+'">'+ik("excluir")+'Remover</button>'+orcHTML(x,i)+logiHTML(x)+'</div>';}).join("")||'<p class="nota">Nenhum parceiro nesta produção.</p>';
     }
     /* Orçamento de cada parceiro (2026-11-15): o adm anexa (orcamento) ou o parceiro envia pelo link da linha (chave → coleção "orcamentos").
        Só o adm lê a pasta de arquivos e a coleção "orcamentos"; o colaborador vê só o nome do anexado. */
@@ -829,6 +857,21 @@ M.producao={
         '<button type="button" class="lnk" data-link-orc="'+i+'">'+ik("link")+(url?'Copiar link para o parceiro':'Link para o parceiro enviar')+'</button>'+
         (url&&tel?'<a class="lnk" target="_blank" rel="noopener" href="'+esc(S.waLink(tel,msgOrc(x,url)))+'">'+ik("whats")+'Enviar pelo WhatsApp ↗</a>':'')+'</div>';
     }
+    /* Entrega e retirada dos produtos de cada loja (2026-11-23, pedido da Isys): data, horário e quem é responsável —
+       pessoa da loja (nome, se souber) ou pessoa da equipe (lista de Responsáveis, com o Shylton). Adm e colaborador veem e
+       editam; o cliente acompanha na aba Cronograma da área dele. Fica em parceiros[i].entrega / .retirada {data,hora,resp,quem,equipeId}. */
+    function logiBlocoHTML(x,g){
+      var o=x[g[0]]||{},eqs=opcoesResp().map(function(r){return [r[0],nomeSemPapel(r[1])];});
+      if(o.equipeId&&!eqs.some(function(r){return r[0]===o.equipeId;}))eqs.push([o.equipeId,o.quem||"Membro da equipe"]);
+      return '<fieldset class="logi__bloco" data-logi="'+g[0]+'"><legend>'+ik(g[0])+esc(g[1])+'</legend><div class="fgrid">'+
+        '<label class="f">Data<input type="date" data-lg="'+g[0]+'" data-lk="data" value="'+esc(o.data||"")+'"></label>'+
+        '<label class="f">Horário<input type="time" data-lg="'+g[0]+'" data-lk="hora" value="'+esc(o.hora||"")+'"></label>'+
+        '<label class="f">Responsável'+selectHTML('data-lg="'+g[0]+'" data-lk="resp"',[["","A combinar"],["loja","Pessoa da loja"],["equipe","Pessoa da equipe"]],o.resp||"")+'</label>'+
+        (o.resp==="equipe"?'<label class="f">Quem da equipe'+selectHTML('data-lg="'+g[0]+'" data-lk="equipeId"',[["","— escolha —"]].concat(eqs),o.equipeId||"")+'</label>':
+         o.resp==="loja"?'<label class="f">Nome na loja<input type="text" maxlength="80" data-lg="'+g[0]+'" data-lk="quem" value="'+esc(o.quem||"")+'" placeholder="Se souber"></label>':'')+
+        '</div></fieldset>';
+    }
+    function logiHTML(x){return '<div class="logi">'+LOGI.map(function(g){return logiBlocoHTML(x,g);}).join("")+'</div>';}
     function linkOrc(x){
       var q=[],n=x.parceiroId&&nomeParceiro(x.parceiroId);
       if(n)q.push("e="+encodeURIComponent(n));if(ed.dataInicio)q.push("d="+ed.dataInicio);
@@ -836,7 +879,7 @@ M.producao={
     }
     function msgOrc(x,url){return "Olá! Aqui é do Shylton Mavie. Pode enviar o orçamento"+(ed.dataInicio?" da produção de "+S.dataBR(ed.dataInicio):"")+" por este link? "+url;}
     function gravarParc(msg){
-      $("#ed-parc",m).innerHTML=parcHTML();
+      $("#ed-parc",m).innerHTML=parcHTML();redesRes();
       if(!ed.id){S.toast(msg+" Salve a produção.");return;}
       var at=St.copia("producoes",ed.id);if(!at)return;delete at.id;at.parceiros=S.clone(ed.parceiros);
       St.salvar("producoes",ed.id,at).then(function(){S.toast(msg);},S.erroGravar);
@@ -849,6 +892,56 @@ M.producao={
       ed.pecas.forEach(function(x){var v=num(x.valor)*num(x.art)/100;if(!v)return;var k=x.parceiroId||"";por[k]=(por[k]||0)+v;});
       var lin=Object.keys(por).map(function(k){return '<span>'+esc(nomeParceiro(k)||"Sem parceiro")+' <b>'+brl(por[k])+'</b></span>';}).join("");
       return '<span>Peças com o cliente <b>'+qtdPecas(ed.pecas)+'</b></span><span>Valor <b>'+brl(t)+'</b></span><span>RT total <b>'+brl(a)+'</b></span>'+(Object.keys(por).length>1?lin:'')+'<span class="nota">Ao salvar, a RT do parceiro entra sozinha no Financeiro, em A receber, na data de pagamento da RT. RT % e valores de RT ficam visíveis só para o administrador.</span>';
+    }
+    /* Resumo dos orçamentos para o cliente (2026-11-23, pedido da Isys): itens de cada loja (linha de Parceiros) com categoria e valor,
+       em parceiros[i].itens; lidos do PDF do orçamento (S.lerOrcamento) ou digitados; parceiros[i].lido guarda o total achado no PDF.
+       "Baixar resumo em PDF" monta o PDF (S.resumoOrcPDF) sem RT. Só o adm vê; o colaborador, ao salvar, mantém os itens. */
+    function arqsLer(x){
+      return [x.orcamento].concat(orcRecebidos(x.chave).map(function(r){return r.arquivo;})).filter(function(a){return a&&S.temBytes(a)&&(a.tipo==="application/pdf"||/\.pdf$/i.test(String(a.id)));});
+    }
+    function catPadrao(x){var p=x.parceiroId?St.get("parceiros",x.parceiroId):null;return (p&&S.CAT_DO_PARC[p.cat])||"";}
+    function avisoRes(x){
+      var t=soma(x.itens||[],"valor");
+      return x.lido&&x.lido.total&&Math.abs(t-x.lido.total)>=.05?"O total do orçamento é "+brl(x.lido.total)+" e a soma dos itens está em "+brl(t)+". Confira os valores.":"";
+    }
+    function resLojaHTML(x,i){
+      var its=x.itens||[],av=avisoRes(x);
+      return '<div class="res__loja" data-ip="'+i+'"><div class="res__cab"><h3>'+esc(nomeParceiro(x.parceiroId)||"Parceiro sem nome")+(x.papel?'<small>'+esc(x.papel)+'</small>':'')+'</h3><b data-res-lt>'+brl(soma(its,"valor"))+'</b></div>'+
+        '<div class="res__ler">'+arqsLer(x).map(function(a,k){return '<button type="button" class="lnk" data-ler="'+i+'" data-ler-k="'+k+'">'+ik("doc")+'Ler '+esc(a.nome||"orçamento")+'</button>';}).join("")+
+          '<label class="lnk orc__env">'+ik("doc")+'Ler um PDF do computador<input type="file" accept="application/pdf,.pdf" data-ler-arq="'+i+'"></label></div>'+
+        '<p class="nota res__aviso" data-res-av'+(av?'':' hidden')+'>'+esc(av)+'</p>'+
+        its.map(function(it,j){return '<div class="rep__lin rep__lin--item" data-ii="'+j+'"><label class="f">Item<input type="text" data-ik="desc" maxlength="120" value="'+esc(it.desc)+'"></label>'+
+          '<label class="f">Categoria<input type="text" data-ik="cat" list="dl-cat-orc" maxlength="40" value="'+esc(it.cat)+'"></label>'+
+          '<label class="f">Valor (R$)<input type="text" inputmode="decimal" data-ik="valor" value="'+(it.valor!==""&&it.valor!=null?S.fmtValor(it.valor):"")+'"></label>'+
+          '<button type="button" class="rep__x" data-rem-it="'+j+'" aria-label="Remover o item" title="Remover o item">'+ik("excluir")+'</button></div>';}).join("")+
+        '<p><button type="button" class="lnk" data-add-it="'+i+'">'+ik("mais")+'Adicionar item</button></p></div>';
+    }
+    function resHTML(){return ed.parceiros.map(resLojaHTML).join("")||'<p class="nota">Adicione as lojas em Parceiros nesta produção para montar o resumo.</p>';}
+    function resTotHTML(){
+      var cats={},tot=0;
+      ed.parceiros.forEach(function(x){(x.itens||[]).forEach(function(it){var v=num(it.valor);if(!v)return;var c=String(it.cat||"").trim()||"Outros";cats[c]=(cats[c]||0)+v;tot+=v;});});
+      return Object.keys(cats).sort(function(a,b){var ia=S.CATS_ORC.indexOf(a),ib=S.CATS_ORC.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);}).map(function(c){return '<span>'+esc(c)+' <b>'+brl(cats[c])+'</b></span>';}).join("")+'<span>Total <b>'+brl(tot)+'</b></span>';
+    }
+    function redesRes(){var r=$("#ed-res",m);if(!r)return;r.innerHTML=resHTML();$("#res-tot",m).innerHTML=resTotHTML();}
+    function lerOrc(i,pBuf,nome){
+      var x=ed.parceiros[i];if(!x)return;nome=nome||"o orçamento";
+      S.toast("Lendo "+nome+"…");
+      Promise.resolve(pBuf).then(function(buf){return S.lerOrcamento(buf,catPadrao(x));}).then(function(r){
+        if(!r.itens.length){S.toast("Não achei itens com valor em "+nome+". Se for foto ou PDF escaneado, digite os itens.");return;}
+        function aplicar(){x.itens=r.itens;x.lido={arquivo:String(nome).slice(0,120),total:r.total||0,em:S.agoraISO()};redesRes();
+          S.toast(r.itens.length+(r.itens.length>1?" itens lidos":" item lido")+". Confira e salve a produção.");}
+        if(!(x.itens||[]).length)return aplicar();
+        return S.confirmar({titulo:"Trocar os itens desta loja?",texto:"Saem os "+x.itens.length+" itens de agora e entram os "+r.itens.length+" lidos de "+nome+".",ok:"Trocar",perigo:false,sobre:"Resumo dos orçamentos",ico:"calc"}).then(function(sim){if(sim)aplicar();});
+      }).catch(function(e){if(window.console)console.warn("Leitura do orçamento",e);S.toast("Não consegui ler "+nome+". Digite os itens.");});
+    }
+    function baixarResumo(b){
+      var lojas=ed.parceiros.map(function(x){return {nome:nomeParceiro(x.parceiroId)||x.papel||"Loja",itens:(x.itens||[]).filter(function(it){return num(it.valor);}).map(function(it){return {desc:it.desc,cat:it.cat,valor:num(it.valor)};})};}).filter(function(l){return l.itens.length;});
+      if(!lojas.length){S.toast("Inclua os itens dos orçamentos antes de baixar o resumo.");return;}
+      var cl=ed.clienteId?St.get("clientes",ed.clienteId):null;
+      b.disabled=true;
+      S.resumoOrcPDF({titulo:ed.titulo||"Produção",cliente:(cl&&cl.nome)||"",data:S.hoje(),lojas:lojas})
+        .catch(function(e){if(window.console)console.warn("Resumo dos orçamentos",e);S.toast("Não foi possível gerar o PDF. Tente de novo.");})
+        .then(function(){b.disabled=false;});
     }
     /* Quem pode ir para a produção: o adm lê Equipe; o colaborador usa a lista de nomes espelhada em time/lista */
     function equipeLista(){
@@ -873,6 +966,11 @@ M.producao={
       '</div><div class="ed__form">'+
         '<section class="ed__bloco"><h2>'+ik("parceiros")+'Parceiros nesta produção</h2><div class="rep" id="ed-parc">'+parcHTML()+'</div><p style="margin-top:var(--s-12)"><button type="button" class="lnk" data-add-p>'+ik("mais")+'Adicionar parceiro</button>'+(adm?' <a class="lnk" href="#adm/parceiros" style="margin-left:var(--s-12)">'+ik("parceiros")+'Cadastrar parceiro</a>':'')+'</p></section>'+
         (adm?'<section class="ed__bloco"><h2>'+ik("peca")+'Peças que ficaram com o cliente para compra</h2><div class="rep" id="ed-pecas">'+pecasHTML()+'</div><p style="margin-top:var(--s-12)"><button type="button" class="lnk" data-add-q>'+ik("mais")+'Adicionar peça</button></p><div class="totais" id="ed-tot">'+totaisHTML()+'</div></section>':'')+
+        (adm?'<section class="ed__bloco"><h2>'+ik("calc")+'Resumo dos orçamentos<small>para enviar ao cliente</small></h2>'+
+          '<p class="nota res__intro">Leia o PDF do orçamento de cada loja ou digite os itens, e confira categorias e valores. O PDF mostra o total, o total por categoria, por loja e os itens de cada loja. Não mostra RT.</p>'+
+          '<div id="ed-res">'+resHTML()+'</div><div class="totais" id="res-tot">'+resTotHTML()+'</div>'+
+          '<p class="res__baixar"><button type="button" class="btn btn--linha" data-baixar-res>'+ik("baixar")+'Baixar resumo em PDF</button></p>'+
+          '<datalist id="dl-cat-orc">'+S.CATS_ORC.map(function(c){return '<option value="'+esc(c)+'">';}).join("")+'</datalist></section>':'')+
       '</div></div>';
       ligar();
     }
@@ -883,11 +981,16 @@ M.producao={
         St.excluir("producoes",ed.id).then(function(){return excluirAgenda("prod-"+ed.id,tokP).catch(function(){});})
           .then(function(){return Promise.all(St.list("financeiro").filter(function(f){return f.producaoId===ed.id&&f.status!=="pago"&&catFin(f.categoria)==="RT / comissão";}).map(function(f){return St.excluir("financeiro",f.id);}));})
           .then(function(){location.hash="#adm/producoes";},S.erroGravar);});});
-      $("[data-add-p]",m).addEventListener("click",function(){ed.parceiros.push({parceiroId:"",papel:""});$("#ed-parc",m).innerHTML=parcHTML();});
+      $("[data-add-p]",m).addEventListener("click",function(){ed.parceiros.push({parceiroId:"",papel:""});$("#ed-parc",m).innerHTML=parcHTML();redesRes();});
+      var br=$("[data-baixar-res]",m);if(br)br.addEventListener("click",function(){baixarResumo(br);});
       var aq=$("[data-add-q]",m);if(aq)aq.addEventListener("click",function(){ed.pecas.push({id:idPeca(),qtd:"",parceiroId:"",valor:"",art:"",dataRT:""});$("#ed-pecas",m).innerHTML=pecasHTML();});
     }
     function aoClicar(e){
-      var b=e.target.closest("[data-rem-p]");if(b){ed.parceiros.splice(+b.getAttribute("data-rem-p"),1);$("#ed-parc",m).innerHTML=parcHTML();return;}
+      var b=e.target.closest("[data-rem-p]");if(b){ed.parceiros.splice(+b.getAttribute("data-rem-p"),1);$("#ed-parc",m).innerHTML=parcHTML();redesRes();return;}
+      b=e.target.closest("[data-ler]");if(b){var xl=+b.getAttribute("data-ler"),pl0=ed.parceiros[xl],al=pl0&&arqsLer(pl0)[+b.getAttribute("data-ler-k")];if(al)lerOrc(xl,S.bytesArq(al),al.nome);return;}
+      b=e.target.closest("[data-add-it]");if(b){var ia=+b.getAttribute("data-add-it"),xa=ed.parceiros[ia];if(!xa)return;(xa.itens=xa.itens||[]).push({desc:"",cat:catPadrao(xa),valor:""});redesRes();
+        var ds=S.$$('[data-ip="'+ia+'"] [data-ik="desc"]',m);if(ds.length)ds[ds.length-1].focus();return;}
+      b=e.target.closest("[data-rem-it]");if(b){var lr=b.closest("[data-ip]"),xr=lr&&ed.parceiros[+lr.getAttribute("data-ip")];if(xr&&xr.itens){xr.itens.splice(+b.getAttribute("data-rem-it"),1);redesRes();}return;}
       b=e.target.closest("[data-recolher-chk]");if(b){chkAberto=!chkAberto;b.setAttribute("aria-expanded",String(chkAberto));$("#chk-corpo",m).hidden=!chkAberto;return;}
       b=e.target.closest("[data-rem-orc]");if(b){var po=ed.parceiros[+b.getAttribute("data-rem-orc")];if(po){delete po.orcamento;gravarParc("Orçamento retirado.");}return;}
       b=e.target.closest("[data-link-orc]");if(b){
@@ -898,7 +1001,7 @@ M.producao={
         return;
       }
       b=e.target.closest("[data-rem-rec]");if(b){var rid=b.getAttribute("data-rem-rec");
-        S.confirmar({titulo:"Tirar este orçamento enviado pelo link?",texto:"Ele sai da produção. Essa ação não pode ser desfeita."}).then(function(sim){if(!sim)return;St.excluir("orcamentos",rid).then(function(){$("#ed-parc",m).innerHTML=parcHTML();S.toast("Orçamento retirado.");},S.erroGravar);});
+        S.confirmar({titulo:"Tirar este orçamento enviado pelo link?",texto:"Ele sai da produção. Essa ação não pode ser desfeita."}).then(function(sim){if(!sim)return;St.excluir("orcamentos",rid).then(function(){$("#ed-parc",m).innerHTML=parcHTML();redesRes();S.toast("Orçamento retirado.");},S.erroGravar);});
         return;}
       b=e.target.closest("[data-add-chk]");if(b){
         var tx=$("[data-chk-txt]",m),et=$("[data-chk-etapa]",m),txt=String(tx.value).trim().slice(0,200);
@@ -931,7 +1034,30 @@ M.producao={
         return;
       }
       if(t.hasAttribute("data-eq")){var i=ed.equipe.indexOf(t.getAttribute("data-eq"));if(t.checked&&i<0)ed.equipe.push(t.getAttribute("data-eq"));if(!t.checked&&i>=0)ed.equipe.splice(i,1);return;}
-      var lp=t.closest("[data-pi]");if(lp&&t.hasAttribute("data-pk")){ed.parceiros[+lp.getAttribute("data-pi")][t.getAttribute("data-pk")]=t.value;return;}
+      if(t.hasAttribute("data-ler-arq")){
+        if(e.type!=="change")return;var fl=t.files&&t.files[0],il=+t.getAttribute("data-ler-arq");t.value="";if(!fl)return;
+        if(!/pdf/i.test(fl.type)&&!/\.pdf$/i.test(fl.name)){S.toast("Escolha o orçamento em PDF. Se for foto, digite os itens.");return;}
+        lerOrc(il,fl.arrayBuffer(),fl.name);return;
+      }
+      if(t.hasAttribute("data-lk")){ /* entrega / retirada da loja */
+        var lg=t.closest("[data-pi]"),xg=lg&&ed.parceiros[+lg.getAttribute("data-pi")];if(!xg)return;
+        if(t.tagName==="SELECT"&&e.type!=="change")return;
+        var gk=t.getAttribute("data-lg"),kg=t.getAttribute("data-lk"),og=xg[gk]=xg[gk]||{};
+        if(kg==="resp"){og.resp=t.value;delete og.quem;delete og.equipeId;
+          var bl=$('[data-logi="'+gk+'"]',lg);if(bl)bl.outerHTML=logiBlocoHTML(xg,LOGI.filter(function(z){return z[0]===gk;})[0]);
+          var sr=$('[data-logi="'+gk+'"] [data-lk="resp"]',lg);if(sr)sr.focus();return;}
+        if(kg==="equipeId"){og.equipeId=t.value;og.quem=t.value?nomeSemPapel((opcoesResp().filter(function(r){return r[0]===t.value;})[0]||[])[1]||""):"";return;}
+        og[kg]=t.value;return;
+      }
+      var li=t.closest("[data-ii]"),lj=li&&t.closest("[data-ip]");
+      if(lj&&t.hasAttribute("data-ik")){
+        var xi=ed.parceiros[+lj.getAttribute("data-ip")],it=xi&&(xi.itens||[])[+li.getAttribute("data-ii")];if(!it)return;
+        var ki=t.getAttribute("data-ik"),vi=ki==="valor"?(t.value===""?"":num(t.value)):t.value;it[ki]=vi;
+        if(e.type==="change"&&ki==="valor"&&t.value!=="")t.value=S.fmtValor(vi);
+        var lt=$("[data-res-lt]",lj),av=$("[data-res-av]",lj),txt=avisoRes(xi);if(lt)lt.textContent=brl(soma(xi.itens,"valor"));if(av){av.textContent=txt;av.hidden=!txt;}
+        $("#res-tot",m).innerHTML=resTotHTML();return;
+      }
+      var lp=t.closest("[data-pi]");if(lp&&t.hasAttribute("data-pk")){ed.parceiros[+lp.getAttribute("data-pi")][t.getAttribute("data-pk")]=t.value;if(e.type==="change")redesRes();return;}
       var lq=t.closest("[data-qi]");
       if(lq&&t.hasAttribute("data-qk")){var v=t.getAttribute("data-num")?(t.value===""?"":num(t.value)):t.value;ed.pecas[+lq.getAttribute("data-qi")][t.getAttribute("data-qk")]=v;
         if(e.type==="change"&&t.getAttribute("data-qk")==="valor"&&t.value!=="")t.value=S.fmtValor(v);$("#ed-tot",m).innerHTML=totaisHTML();return;}
@@ -1367,6 +1493,7 @@ function syncTime(){
   }).catch(function(){});
 }
 function opcoesResp(){return timeLista().map(function(x){return [x[0],x[1]];});}
+function nomeSemPapel(n){return String(n||"").replace(/\s*\(administrador\)$/,"");}
 /* ---------- Reunião no Google Meet (pedido da Isys, 2026-11-15) ----------
    Só o adm: ao salvar a tarefa com "Reunião online", abre a janela do Google (conta do Shylton, permissão só
    para eventos da agenda), o site cria o evento com Meet na agenda principal dele e guarda o link na tarefa.

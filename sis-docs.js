@@ -717,6 +717,178 @@ function contratoPDF(ct,nomeCli){
     .then(function(blob){fim();return S.salvarArquivo(nome+".pdf",blob);},function(e){fim();throw e;});
 }
 
+/* ================= ORÇAMENTOS DAS LOJAS: leitura e resumo para o cliente (pedido da Isys, 2026-11-23) =================
+   Ler: o PDF do orçamento é aberto pelo pdf.js aqui mesmo no navegador (o arquivo não vai para nenhum outro lugar).
+   Cada linha com valor em reais vira um item: descrição + o último valor da linha (costuma ser o total do item).
+   Linhas de total, desconto e frete ficam à parte; desconto e frete entram como itens quando fecham com o total.
+   Categoria pelas palavras do item (lençol → Roupa de cama…); sem pista, pela categoria do parceiro; senão "Outros".
+   É ponto de partida: o adm confere na produção. Foto ou PDF escaneado não tem texto: os itens são digitados.
+   O leitor (pdf.worker) é carregado como script conferido (SRI) e roda na própria página: sem worker de fora, sem eval.
+   Resumo: PDF A4 pelo mesmo caminho do contrato (vetor; imagem como plano B): total, por categoria, por loja e itens. Sem RT. */
+var PDFJS="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",PDFJS_W="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+SRI[PDFJS]="sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
+SRI[PDFJS_W]="sha384-SnzOobpRMLXZ52iJvZm/C0fYw0OQemTXzTjIsdsfMcrCtCEe9qgzxTd3RSklO5x2";
+var CATS_ORC=["Roupa de cama","Banho","Mesa posta","Almofadas e mantas","Tapetes","Cortinas","Quadros e obras de arte","Objetos","Livros","Folhagens e flores","Móveis","Iluminação","Outros","Frete e entrega","Desconto"];
+var CAT_DO_PARC={folhagem:"Folhagens e flores",moveis:"Móveis",decoracao:"Objetos",arte:"Quadros e obras de arte",especiais:"Objetos"};
+var REGRAS_CAT=[ /* a ordem importa: "toalha de mesa" é Mesa posta antes de "toalha" ser Banho; "vaso com planta" é Folhagem antes de "vaso" ser Objeto */
+  ["Mesa posta",/toalha de mesa|jogo americano|\bamericanos?\b|guardanapo|sousplat|souplat|trilho de mesa|\bpratos?\b|\btacas?\b|\bcopos?\b|talher|\bgarfos?\b|\bfacas?\b|colher|travessa|xicara|caneca|\blouca|porcelana|\bjarras?\b|petisqueira|saleiro|tigela|sobremesa|\bbowls?\b/],
+  ["Banho",/toalha|roupao|tapete de banho|piso de banho|saboneteira|porta ?escova|dispenser/],
+  ["Roupa de cama",/lencol|lencois|fronha|edredo|duvet|colcha|cobre ?leito|porta ?travesseiro|saia de cama|jogo de cama|travesseiro|protetor de colchao|peseira|cobertor|\bpillow/],
+  ["Almofadas e mantas",/almofada|\bmantas?\b|\bxales?\b|pelego|\bthrow/],
+  ["Tapetes",/tapete|passadeira/],
+  ["Cortinas",/cortina|persiana|\bvarao|\bvoil|blackout/],
+  ["Quadros e obras de arte",/quadro|gravura|pintura|\btelas?\b|fotografia|moldura|\bobras?\b|litografia|serigrafia|aquarela|poster|\bprint\b/],
+  ["Folhagens e flores",/planta|folhage|\bfolhas?\b|arranjo|\bflor\b|\bflores\b|orquidea|costela|palmeira|\bgalhos?\b|\bramos?\b|buque|suculenta|cacto|ficus|jiboia|samambaia|bromelia|zamioculca|\bmusgo|substrato/],
+  ["Livros",/\blivros?\b|revista/],
+  ["Iluminação",/luminaria|abajur|pendente|lustre|lampada|arandela|\bspots?\b|plafon|fita de led/],
+  ["Móveis",/poltrona|cadeira|\bsofas?\b|aparador|comoda|criado|cabeceira|\bracks?\b|estante|\bpuffs?\b|\bpufes?\b|buffet|\bbufe|chaise|\bbancos?\b|banqueta|\bmesas?\b|escrivaninha|\bcamas?\b|armario|prateleira|\bnichos?\b|console|carrinho/],
+  ["Objetos",/\bvasos?\b|cachepo|bandeja|escultura|objeto|\bcest[oa]s?\b|caixa|castica|\bvelas?\b|difusor|espelho|relogio|porta ?retrato|decorativ|enfeite|ceramica|\bvidros?\b|incensario|\bbolas?\b/]
+];
+function catItem(t,padrao){
+  var s=" "+S.normal(t).replace(/[^a-z0-9]+/g," ")+" ";
+  for(var i=0;i<REGRAS_CAT.length;i++)if(REGRAS_CAT[i][1].test(s))return REGRAS_CAT[i][0];
+  return padrao||"Outros";
+}
+function leitorPDF(){
+  return carregar(PDFJS).then(function(){return carregar(PDFJS_W);}).then(function(){
+    var L=window.pdfjsLib;if(!L)throw new Error("leitor de PDF");
+    L.GlobalWorkerOptions.workerSrc=PDFJS_W; /* exigido pela biblioteca; com o pdfjsWorker já na página ela não cria worker */
+    return L;
+  });
+}
+/* Texto da página em linhas: junta os pedaços com a mesma altura (y), da esquerda para a direita */
+function linhasPagina(items){
+  var its=items.filter(function(i){return i.str&&/\S/.test(i.str);}).map(function(i){var t=i.transform;return {s:i.str,x:t[4],y:t[5],w:i.width||0,h:Math.abs(t[3])||i.height||8};});
+  its.sort(function(a,b){return b.y-a.y||a.x-b.x;});
+  var ls=[];
+  its.forEach(function(i){var l=ls[ls.length-1];if(l&&Math.abs(l.y-i.y)<=Math.max(2,Math.min(l.h,i.h)*.5))l.its.push(i);else ls.push({y:i.y,h:i.h,its:[i]});});
+  return ls.map(function(l){
+    l.its.sort(function(a,b){return a.x-b.x;});
+    var t="",fim=null;
+    l.its.forEach(function(i){if(fim!==null&&i.x-fim>i.h*.12)t+=" ";t+=i.s;fim=i.x+i.w;});
+    return t.replace(/\s+/g," ").trim();
+  });
+}
+function linhasPDF(buf){
+  return leitorPDF().then(function(L){return L.getDocument({data:new Uint8Array(buf),isEvalSupported:false,disableFontFace:true,verbosity:0}).promise;}).then(function(doc){
+    var out=[],p=Promise.resolve();
+    for(var n=1;n<=Math.min(doc.numPages,30);n++)(function(n){
+      p=p.then(function(){return doc.getPage(n);}).then(function(pg){return pg.getTextContent();}).then(function(tc){out.push.apply(out,linhasPagina(tc.items));});
+    })(n);
+    return p.then(function(){doc.destroy();return out;});
+  });
+}
+var RX_VAL=/-?(?:R\$\s?)?\d{1,3}(?:\.\d{3})+,\d{2}(?![\d%])|-?(?:R\$\s?)?\d+,\d{2}(?![\d%])/g;
+var RX_TOT=/\b(sub ?total|total|valor a pagar|a pagar|valor do pedido|valor do orcamento)\b/;
+var RX_DESCONTO=/\b(descontos?|abatimento|desc)\b/;
+var RX_FRETE=/\b(frete|entrega|transporte)\b/;
+var RX_FORA=/\b(parcelas?|sinal|troco|pagamento|pago|vencimento|juros|icms|ipi|iss|impostos?|tributos?|saldo|credito|cartao|pix|boleto|cnpj|cpf|cep|telefone|fone|validade|emissao|aliquota|cashback|comissao|rt|reserva tecnica|vezes|sem juros)\b|\d ?x de\b/;
+function valorBR(s){var v=parseFloat(String(s).replace(/[^\d,]/g,"").replace(",","."))||0;return /^\s*-/.test(s)?-v:v;}
+function letras(s){return (String(s).match(/[A-Za-zÀ-ÿ]/g)||[]).length;}
+function r2(v){return Math.round(v*100)/100;}
+function limparDesc(l,vals){
+  for(var i=vals.length-1;i>=0;i--)l=l.slice(0,vals[i].index)+" "+l.slice(vals[i].index+vals[i][0].length);
+  var tk=l.replace(/R\$/g," ").split(/\s+/).filter(Boolean);
+  /* tira código e número do item no começo e quantidade/unidade no fim; número no meio do nome fica ("percal 400 fios") */
+  function sobra(t){return /^\d+([.,]\d+)?%?$/.test(t)||/^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(t)||/^(un|und|unid|pc|pç|pcs|cx|kg|mt|mts|m|m2|m²|x|×|qtd|qtde|=|\*|-|–|\|)\.?$/i.test(t);}
+  while(tk.length&&(sobra(tk[0])||/\d/.test(tk[0])&&/^#?[A-Z0-9][A-Z0-9.\-\/]*$/i.test(tk[0])&&!/[a-zà-ÿ]{3}/.test(tk[0])))tk.shift();
+  while(tk.length&&sobra(tk[tk.length-1]))tk.pop();
+  return tk.join(" ").replace(/^[\s\-–—|:;,.]+|[\s\-–—|:;,]+$/g,"");
+}
+function lerTextoOrc(linhas,padrao){
+  var itens=[],totais=[],desconto=0,frete=0,ant="";
+  linhas.forEach(function(l){
+    var vals=[],m;RX_VAL.lastIndex=0;
+    while((m=RX_VAL.exec(l))){var c=l.charAt(m.index-1);if(c&&/[\d.,]/.test(c))continue;vals.push(m);}
+    if(!vals.length){ant=l;return;}
+    var n=" "+S.normal(l).replace(/[^a-z0-9]+/g," ")+" ",v=valorBR(vals[vals.length-1][0]),d=limparDesc(l,vals);
+    if(RX_TOT.test(n)){totais.push({v:Math.abs(v),sub:/sub ?total/.test(n),fino:/total (geral|do pedido|do orcamento|liquido|final|a pagar)|valor total/.test(n)});ant="";return;}
+    if(RX_DESCONTO.test(n)){desconto+=Math.abs(v);ant="";return;}
+    if(RX_FRETE.test(n)&&d.split(" ").length<=4){frete+=Math.abs(v);ant="";return;}
+    if(RX_FORA.test(n)||(/\bentrada\b/.test(n)&&!/\b(mesa|aparador|tapete|capacho|hall|banco)\b/.test(n))){ant="";return;}
+    if(letras(d)<3&&letras(ant)>=3&&!RX_FORA.test(" "+S.normal(ant)+" "))d=limparDesc(ant,[]); /* nome do item na linha de cima */
+    ant="";
+    if(letras(d)<3||!v)return;
+    itens.push({desc:d.slice(0,120),cat:catItem(d,padrao),valor:r2(v)});
+  });
+  var fin=totais.filter(function(t){return t.fino&&!t.sub;}),cheio=totais.filter(function(t){return !t.sub;});
+  var total=(fin.length?fin:cheio.length?cheio:totais).reduce(function(s,t){return Math.max(s,t.v);},0);
+  var soma=itens.reduce(function(s,i){return s+i.valor;},0),aj=[frete,desconto];
+  if(total&&(frete||desconto))aj=[[frete,desconto],[0,desconto],[frete,0]].filter(function(c){return (c[0]||c[1])&&Math.abs(soma+c[0]-c[1]-total)<.05;})[0]||[0,0];
+  if(aj[0])itens.push({desc:"Frete",cat:"Frete e entrega",valor:r2(aj[0])});
+  if(aj[1])itens.push({desc:"Desconto",cat:"Desconto",valor:-r2(aj[1])});
+  return {itens:itens,total:r2(total),linhas:linhas.length};
+}
+function lerOrcamento(buf,padrao){return linhasPDF(buf).then(function(l){return lerTextoOrc(l,padrao);});}
+
+function brlRes(v){v=r2(v);return (v<0?"− ":"")+"R$ "+S.fmtValor(Math.abs(v));}
+function dataExt(iso){var p=String(iso||"").split("-").map(Number);return p.length<3||!p[0]?"":p[2]+" de "+S.MESES[p[1]-1]+" de "+p[0];}
+function posCat(c){var i=CATS_ORC.indexOf(c);return i<0?CATS_ORC.indexOf("Outros")-.5:i;}
+/* r: {titulo, cliente, data, lojas:[{nome, itens:[{desc, cat, valor}]}]} — a mesma loja em duas linhas vira uma */
+function resumoHTML(r){
+  var por={},lojas=[];
+  (r.lojas||[]).forEach(function(l){
+    var k=S.normal(l.nome)||"loja",its=(l.itens||[]).filter(function(i){return num(i.valor);}).map(function(i){return {desc:String(i.desc||"").trim()||"Item",cat:String(i.cat||"").trim()||"Outros",valor:num(i.valor)};});
+    if(!its.length)return;
+    if(!por[k]){por[k]={nome:l.nome||"Loja",itens:[]};lojas.push(por[k]);}
+    por[k].itens=por[k].itens.concat(its);
+  });
+  var cats={},nIt=0,total=0;
+  lojas.forEach(function(l){l.total=0;l.cats=[];l.itens.forEach(function(i){
+    var ajuste=i.cat==="Frete e entrega"||i.cat==="Desconto"; /* não são itens: não contam nem entram na lista do que a loja forneceu */
+    l.total+=i.valor;cats[i.cat]=(cats[i.cat]||0)+i.valor;if(!ajuste){nIt++;if(l.cats.indexOf(i.cat)<0)l.cats.push(i.cat);}
+  });total+=l.total;l.cats.sort(function(a,b){return posCat(a)-posCat(b);});});
+  var ordem=Object.keys(cats).sort(function(a,b){return posCat(a)-posCat(b)||a.localeCompare(b,"pt-BR");});
+  function lin(a,b,cl){return '<div class="rs-lin'+(cl?" "+cl:"")+'">'+a+'<span class="rs-v">'+b+'</span></div>';}
+  return '<div class="marca">'+SIMB_V+'<span>'+esc(NOME)+'</span></div>'+
+    '<h1>RESUMO DOS ORÇAMENTOS</h1>'+
+    '<p class="centro">'+[r.titulo,r.cliente?"Cliente: "+r.cliente:"",dataExt(r.data)].filter(Boolean).map(esc).join("<br>")+'</p>'+
+    '<div class="rs-total"><span class="rs-rot">TOTAL</span><b>'+brlRes(total)+'</b><small>'+lojas.length+(lojas.length>1?" lojas":" loja")+' · '+nIt+(nIt>1?" itens":" item")+'</small></div>'+
+    '<h2>POR CATEGORIA</h2>'+ordem.map(function(c){return lin('<span>'+esc(c)+'</span>',brlRes(cats[c]));}).join("")+
+    '<h2>POR LOJA</h2>'+lojas.map(function(l){return lin('<span>'+esc(l.nome)+'<small>'+esc(l.cats.join(", "))+'</small></span>',brlRes(l.total));}).join("")+
+    lin('<span>Total</span>',brlRes(total),"rs-lin--tot")+
+    '<h2>ITENS DE CADA LOJA</h2>'+
+    lojas.map(function(l){
+      return '<h3 class="rs-loja"><span>'+esc(l.nome)+'</span><span>'+brlRes(l.total)+'</span></h3>'+
+        l.itens.map(function(i){return lin('<span>'+esc(i.desc)+'</span><span class="rs-cat">'+esc(i.cat)+'</span>',brlRes(i.valor),"rs-lin--it");}).join("");
+    }).join("")+
+    '<p class="rs-nota">Valores conforme os orçamentos de cada loja.</p>';
+}
+/* Páginas A4 bloco a bloco, como o contrato: título nunca fica sozinho no pé; a loja que continua na página seguinte repete o nome */
+function paginasResumo(html,box){
+  var fonte=document.createElement("div");fonte.innerHTML='<article class="folha">'+html+'</article>';
+  var blocos=S.$$(".folha > *",fonte),pags=[],pg,loja=null;
+  function nova(){pg=document.createElement("article");pg.className="folha folha--pdf";box.appendChild(pg);pags.push(pg);}
+  function cabe(el){return el.getBoundingClientRect().bottom<=pg.getBoundingClientRect().bottom-parseFloat(getComputedStyle(pg).paddingBottom)+.5;}
+  nova();
+  blocos.forEach(function(b){
+    if(b.classList.contains("rs-loja"))loja=b;else if(b.tagName==="H2")loja=null;
+    pg.appendChild(b);
+    if(cabe(b)||pg.children.length===1)return;
+    var levar=[b],ant;
+    while((ant=levar[0].previousElementSibling)&&(ant.tagName==="H2"||ant.tagName==="H3")&&pg.children.length>levar.length+1)levar.unshift(ant);
+    nova();
+    if(loja&&levar[0].classList.contains("rs-lin--it")){var c=loja.cloneNode(true);c.firstChild.textContent+=" (continuação)";pg.appendChild(c);}
+    levar.forEach(function(x){pg.appendChild(x);});
+  });
+  pags.forEach(function(p,i){var r=document.createElement("span");r.className="folha__pag";r.textContent=(i+1)+" / "+pags.length;p.appendChild(r);});
+  return pags;
+}
+function resumoOrcPDF(r){
+  var aviso=document.createElement("div");aviso.className="gerando";aviso.textContent="Gerando o resumo dos orçamentos…";
+  var box=document.createElement("div");box.className="ct-render";
+  document.body.appendChild(box);document.body.appendChild(aviso);
+  function fim(){box.remove();aviso.remove();}
+  var nome=String(r.cliente||r.titulo||"Produção").toUpperCase()+" - RESUMO DOS ORÇAMENTOS - SHYLTON MAVIE - "+String(r.data||S.hoje()).split("-").reverse().join(""),fs=document.fonts;
+  return carregar(JSPDF)
+    .then(function(){return fs?Promise.all(['300 13px "Lexend"','400 13px "Lexend"','600 13px "Lexend"','300 11px "Lexend Exa"','335 24px "Josefin Sans"'].map(function(f){return fs.load(f).catch(function(){});})).then(function(){return fs.ready;}):null;})
+    .then(function(){
+      var pags=paginasResumo(resumoHTML(r),box);
+      return pdfVetor(pags,nome,A4).catch(function(e){if(window.console)console.warn("Resumo em vetor falhou; indo em imagem.",e);return pdfImagem(pags,A4);});
+    })
+    .then(function(blob){fim();return S.salvarArquivo(nome+".pdf",blob);},function(e){fim();throw e;});
+}
+
 /* ================= REVISÃO JURÍDICA DO CONTRATO BASE ================= */
 var REVISAO=[
  {t:"Partes e marca",n:"Ajuste",antes:"Cabeçalho “ESTÚDIO MATO”, mas quem assina é a pessoa física, sem endereço, sem registro no CAU e sem contato.",prob:"A marca não é parte do contrato. Sem endereço e sem CAU, a qualificação fica incompleta para cobrança e notificações.",agora:"Qualificação completa das duas partes (CPF ou CNPJ, endereço, e-mail, telefone e CAU do contratado) e a frase “que atua sob a marca Shylton Mavie”. Há versão para cliente empresa, com representante legal."},
@@ -744,6 +916,7 @@ function revisaoHTML(){
 }
 
 Object.assign(S,{slidesHTML:slidesHTML,propostaPDF:propostaPDF,imprimirProposta:imprimirProposta,
-  contratoHTML:contratoHTML,contratoDocx:contratoDocx,contratoPDF:contratoPDF,faltando:faltando,enderecoCli:enderecoCli,faltaCliente:faltaCliente,revisaoHTML:revisaoHTML,REVISAO:REVISAO,nomeArq:nomeArq,
+  contratoHTML:contratoHTML,contratoDocx:contratoDocx,contratoPDF:contratoPDF,
+  lerOrcamento:lerOrcamento,catItem:catItem,CATS_ORC:CATS_ORC,CAT_DO_PARC:CAT_DO_PARC,resumoOrcPDF:resumoOrcPDF,resumoHTML:resumoHTML,_orc:{lerTexto:lerTextoOrc},faltando:faltando,enderecoCli:enderecoCli,faltaCliente:faltaCliente,revisaoHTML:revisaoHTML,REVISAO:REVISAO,nomeArq:nomeArq,
   _docx:{partes:partesDocx,marcaPNG:marcaPNG,zip:zip}});
 })();
