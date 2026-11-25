@@ -196,7 +196,7 @@ function calcular(p){
    propostas, contratos, clientes, parceiros, equipe e financeiro só para o adm.
    Fora dela: modo demonstração no navegador (localStorage). */
 var LS="sm-sistema-v1";
-var COLS_ADM=["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config","time","pedidos","orcamentos"];
+var COLS_ADM=["propostas","clientes","contratos","producoes","financeiro","parceiros","tarefas","agenda","equipe","avisos","config","time","pedidos","orcamentos","lembretes"]; /* lembretes = e-mails já enviados (nº do recibo) */
 var COLS_COLAB=["tarefas","agenda","parceiros","producoes","time"];
 var Store={
   modo:"carregando",db:null,dados:{},ouvintes:[],carregado:{},assinadas:"",
@@ -1001,6 +1001,27 @@ function novaProposta(x){
     valor:0,valorManual:false,dias:2,ajudantes:1,contexto:"",tituloInvest:"",
     pagamento:c.proposta.pagamento,etapas:c.proposta.etapas,exclusoes:c.proposta.exclusoes,observacoes:c.proposta.observacoes,creditos:c.proposta.creditos},x||{});
 }
+/* Forma de pagamento da proposta por opção (pedido da Isys, 2026-11-24): à vista, 50%/50%, parcelado em N vezes (valor ÷ N, em centavos) ou outra (texto).
+   O texto sai sozinho em p.pagamento, que a proposta, o PDF e a área do cliente já usam. Proposta antiga sem pagTipo: deduz do texto. */
+var PAG_TIPOS=[["vista","À vista"],["5050","50% na assinatura e 50% no início"],["parcelado","Parcelado"],["outro","Outra (escrever)"]];
+function pagTipo(p){
+  if(p.pagTipo)return p.pagTipo;
+  var t=normal(p.pagamento);
+  return !t||t==="a vista"?"vista":/^50% na assinatura do contrato e 50% no inicio/.test(t)?"5050":"outro";
+}
+/* total ÷ n em centavos: as r primeiras levam 1 centavo a mais (nunca diferem mais que R$ 0,01) */
+function parcelasValor(total,n){var c=Math.round(num(total)*100),b=Math.floor(c/n),r=c-b*n;
+  return {n:n,r:r,base:b/100,maior:(b+1)/100,valor:function(i){return (i<r?b+1:b)/100;}};}
+function textoPagamento(p){
+  var t=pagTipo(p);
+  if(t==="vista")return "À vista";
+  if(t==="5050")return "50% na assinatura do contrato e 50% no início da produção";
+  if(t==="parcelado"){var x=parcelasValor(p.valor,Math.max(2,Math.round(num(p.nParcelas)||3)));
+    return "Parcelado em "+x.n+"x "+(x.r?"("+x.r+"x de "+brl(x.maior)+" e "+(x.n-x.r)+"x de "+brl(x.base)+")":"de "+brl(x.base));}
+  return String(p.pagamento||"");
+}
+/* Datas da produção na proposta: a Data sugerida e as outras que o adm acrescentar (datasExtra), em ordem */
+function datasProposta(p){return [p.dataSugerida].concat(p.datasExtra||[]).filter(function(d){return /^\d{4}-\d{2}-\d{2}$/.test(d||"");}).sort().filter(function(d,i,a){return a.indexOf(d)===i;});}
 function listaAmbientes(p){return (p.ambientes||[]).filter(function(a){return String(a.nome||"").trim();}).map(function(a){return a.nome+(num(a.m2)?" ("+fmtNum(a.m2)+" m²)":"");}).join(", ");}
 function msgAdm(p){
   var fotos=(p.ambientes||[]).reduce(function(s,a){return s+(a.fotos||[]).length;},(p.fotos||[]).length);
@@ -1429,6 +1450,6 @@ Object.assign(SIS,{
   campo:campo,campos:campos,lerCampos:lerCampos,validar:validar,modal:modal,modalForm:modalForm,confirmar:confirmar,fecharModal:fecharModal,erroGravar:erroGravar,
   TIPOS_CLI:TIPOS_CLI,ehPJ:ehPJ,tipoCli:tipoCli,CATS_PARC:CATS_PARC,nomeTipoCli:nomeTipoCli,
   subir:subir,urlArquivo:urlArquivo,linkArq:linkArq,imgArq:imgArq,bytesArq:bytesArq,temBytes:temBytes,salvarArquivo:salvarArquivo,logoSVG:logoSVG,
-  novaProposta:novaProposta,listaAmbientes:listaAmbientes,msgAdm:msgAdm,msgCliente:msgCliente,ligarPedido:ligarPedido
+  novaProposta:novaProposta,listaAmbientes:listaAmbientes,PAG_TIPOS:PAG_TIPOS,pagTipo:pagTipo,parcelasValor:parcelasValor,textoPagamento:textoPagamento,datasProposta:datasProposta,msgAdm:msgAdm,msgCliente:msgCliente,ligarPedido:ligarPedido
 });
 })();

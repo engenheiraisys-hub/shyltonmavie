@@ -200,7 +200,7 @@ M.propostas={render:function(m,id,vista){
       {r:"Cliente",v:function(p){var c=p.cliente||{};return esc(c.nome||"Sem nome")+'<small>'+esc(p.num)+(c.empresa?' · '+esc(c.empresa):'')+'</small>';}},
       {r:"Finalidade",v:function(p){return esc(S.FINALIDADES[p.finalidade]||"—");},cl:"sec"},
       {r:"Ambientes",v:function(p){return esc(S.listaAmbientes(p)||"—");}},
-      {r:"Data sugerida",v:function(p){return esc(S.dataBR(p.dataSugerida)||"—");},cl:"sec"},
+      {r:"Data sugerida",v:function(p){var d=S.datasProposta(p);return esc(S.dataBR(d[0])||"—")+(d.length>1?" +"+(d.length-1):"");},cl:"sec"},
       {r:"Valor",v:function(p){return brl(p.valor);},cl:"num"},
       {r:"Status",v:function(p){return S.tag("proposta",stProp(p))+(p.origem==="site"||p.origem==="link"?'<small class="sec">pelo '+p.origem+'</small>':'');}}
     ],l,todas.length?"Nenhuma proposta com esse filtro.":"Ainda não há propostas. Elas chegam pelo formulário do Contato no site, ou crie uma em Nova proposta.",function(p){return corSt("proposta",stProp(p));});
@@ -208,6 +208,13 @@ M.propostas={render:function(m,id,vista){
   if(!carregando($("#sis-lista",m),vista,"propostas"))vista.atualizar();
 }};
 
+var NPARC=[2,3,4,5,6,7,8,9,10,11,12].map(function(n){return [String(n),n+"x"];});
+/* Proposta → contrato: forma de pagamento e 1ª data da produção */
+function pagContrato(p){
+  var t=S.pagTipo(p);
+  return t==="vista"?{pagamentoTipo:"vista"}:t==="parcelado"?{pagamentoTipo:"parcelado",nParcelas:String(p.nParcelas||3)}:t==="5050"?{pagamentoTipo:"sinal",sinal:50}
+    :{pagamentoTipo:"outro",pagamentoOutro:p.pagamento||""};
+}
 M.proposta={render:function(m,id,vista){
   var ed;
   if(carregando(m,vista,["propostas","clientes","config","contratos"]))return;
@@ -218,6 +225,7 @@ M.proposta={render:function(m,id,vista){
     if(!ed){m.innerHTML=cab("Proposta não encontrada","",'',["#adm/propostas","Propostas"]);return;}
     ed.status=stProp(ed);
   }
+  ed.pagTipo=S.pagTipo(ed);if(!ed.nParcelas)ed.nParcelas="3";
   vista.vivo=false;
   var temAssets=false;S.usar("assets").then(function(a){temAssets=!!a&&St.modo==="db";var b=temAssets&&$("#ed-amb",m);if(b)b.innerHTML=ambHTML();});
   var aba="slides";
@@ -245,6 +253,20 @@ M.proposta={render:function(m,id,vista){
       '</div>';
     }).join("");
   }
+  /* Mais de uma data para a produção (pedido da Isys, 2026-11-24): a Data sugerida + outras datas */
+  function datasHTML(){
+    return (ed.datasExtra||[]).map(function(d,i){
+      return '<div class="rep__lin" style="grid-template-columns:minmax(0,1fr) auto;margin-bottom:var(--s-12)"><label class="f">Outra data<input type="date" data-dx="'+i+'" value="'+esc(d)+'"></label>'+
+        '<button type="button" class="rep__x" data-rem-data="'+i+'">'+ik("excluir")+'Remover</button></div>';
+    }).join("")+'<p><button type="button" class="lnk" data-add-data>'+ik("mais")+'Adicionar outra data</button></p>';
+  }
+  /* Forma de pagamento: mostra Número de vezes só no parcelado e o texto só em Outra; nos outros, o texto sai sozinho */
+  function pagVis(){
+    var t=ed.pagTipo,n=$('[data-k="nParcelas"]',m),p=$('[data-k="pagamento"]',m),nt=$("#ed-pag",m);
+    if(t!=="outro"){ed.pagamento=S.textoPagamento(ed);if(p)p.value=ed.pagamento;}
+    if(n)n.closest("label").hidden=t!=="parcelado";if(p)p.closest("label").hidden=t!=="outro";
+    if(nt){nt.hidden=t==="outro";nt.innerHTML="Na proposta: <b>"+esc(ed.pagamento)+"</b>";}
+  }
   function arquivosHTML(){
     var l=ed.arquivos||[];
     return l.length?'<div class="miniaturas">'+l.map(function(f){return S.linkArq(f,esc(f.nome)+' ↗',"lnk")||'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div>':'<p class="nota">Nenhum arquivo de projeto enviado.</p>';
@@ -263,7 +285,8 @@ M.proposta={render:function(m,id,vista){
       '<section class="ed__bloco"><h2>'+ik("clientes")+'Cliente</h2><div class="fgrid"><label class="f f--full">Vincular a um cliente cadastrado'+selectHTML('data-vinc',opcoesClientes(),ed.clienteId)+'</label>'+S.campos(camposCliente(),ed)+'</div></section>'+
       '<section class="ed__bloco"><h2>'+ik("propostas")+'Pedido</h2><div class="fgrid">'+S.campos([
         {k:"finalidade",r:"Finalidade",t:"select",o:opcoesFin()},
-        {k:"dataSugerida",r:"Data sugerida",t:"date"},{k:"temProjeto",r:"Tem projeto ou arquivo do SketchUp",t:"check",full:1}],ed)+
+        {k:"dataSugerida",r:"Data sugerida",t:"date"}],ed)+'<div id="ed-datas" style="grid-column:1/-1">'+datasHTML()+'</div>'+
+        S.campos([{k:"temProjeto",r:"Tem projeto ou arquivo do SketchUp",t:"check",full:1}],ed)+
         '<div class="f f--full">Arquivos de projeto'+arquivosHTML()+'</div>'+
         ((ed.fotos||[]).length?'<div class="f f--full">Fotos do espaço<div class="miniaturas">'+ed.fotos.map(function(f){return S.linkArq(f,S.imgArq(f,f.nome))||'<span>'+esc(f.nome)+(f.nota?' · '+esc(f.nota):'')+'</span>';}).join("")+'</div></div>':'')+
         S.campos([{k:"mensagem",r:"Mensagem do cliente",t:"area",full:1}],ed)+'</div></section>'+
@@ -272,8 +295,11 @@ M.proposta={render:function(m,id,vista){
         {k:"valor",r:"Valor da proposta (R$)",t:"money"},{k:"valorManual",r:"Usar valor manual (não recalcular)",t:"check"},
         {k:"dias",r:"Prazo de execução (dias)",t:"number"},{k:"ajudantes",r:"Ajudantes",t:"number"}],ed)+'</div></section>'+
       '<section class="ed__bloco"><h2>'+ik("texto")+'Texto da proposta</h2><div class="fgrid">'+S.campos([
-        {k:"data",r:"Data da proposta",t:"date"},{k:"pagamento",r:"Forma de pagamento"},
-        {k:"validade",r:"Validade da proposta (dias)",t:"number",ph:"10",ajuda:"Aparece em Próximos passos. O início da produção vem da Data sugerida."},
+        {k:"data",r:"Data da proposta",t:"date"},{k:"pagTipo",r:"Forma de pagamento",t:"select",o:S.PAG_TIPOS},
+        {k:"nParcelas",r:"Número de vezes",t:"select",o:NPARC},
+        {k:"validade",r:"Validade da proposta (dias)",t:"number",ph:"10",ajuda:"Aparece em Próximos passos, com as datas sugeridas da produção."}],ed)+
+        '<p class="nota" id="ed-pag" style="grid-column:1/-1"></p>'+S.campos([
+        {k:"pagamento",r:"Forma de pagamento (texto)",full:1},
         {k:"etapas",r:"Etapas",full:1},
         {k:"contexto",r:"Contexto (opcional)",full:1,ph:"Ex.: para o espaço da REVEEV projetado por Manu P.",ajuda:"Completa a frase “Apresentamos as condições para a produção… mencionados na proposta”."},
         {k:"tituloInvest",r:"Título do investimento",full:1,ph:"Ex.: Quarto REVEEV - Manu Pagliosa"},
@@ -285,6 +311,7 @@ M.proposta={render:function(m,id,vista){
     ligar();previa();
   }
   var previa=S.debounce(function(){
+    pagVis();
     var box=$("#ed-prev",m);if(!box)return;
     if(aba==="slides"){box.innerHTML='<div class="slides">'+S.slidesHTML(ed)+'</div>';return;}
     var c=ed.cliente||{};
@@ -304,6 +331,7 @@ M.proposta={render:function(m,id,vista){
      Sem os botões Imprimir e Gerar contrato: a Isys pediu (2026-11-09). */
   function salvar(){
     var f=$("#ed-form",m);if(!S.validar(f))return Promise.reject({code:"validacao"});
+    pagVis();ed.datasExtra=(ed.datasExtra||[]).filter(Boolean);
     if(ed.status==="enviada"&&!ed.enviadaEm)ed.enviadaEm=S.hoje(); /* conta os 7 dias do lembrete */
     var criar=false;
     if(ed.status==="aceita"&&!ed.contratoCriado){ed.contratoCriado=true;criar=!conDaProposta(ed.id);}
@@ -320,10 +348,10 @@ M.proposta={render:function(m,id,vista){
   function novoContrato(pid){
     var c=S.cfg().contrato;
     return St.salvar("contratos",null,{num:S.proxNum("contratos","C"),status:"rascunho",clienteId:ed.clienteId,propostaId:pid,criadoEm:S.agoraISO(),
-      campos:{finalidade:ed.finalidade,ambientes:S.listaAmbientes(ed),enderecoServico:"",dataInicio:ed.dataSugerida||"",dias:ed.dias,ajudantes:ed.ajudantes,dataDesmontagem:"",valor:ed.valor,
-        pagamentoTipo:S.normal(ed.pagamento).indexOf("vista")>=0?"vista":"sinal",sinal:c.sinal,pagamentoOutro:"",pix:"",limiteDespesa:c.limiteDespesa,diaria:c.diaria,
+      campos:Object.assign({finalidade:ed.finalidade,ambientes:S.listaAmbientes(ed),enderecoServico:"",dataInicio:S.datasProposta(ed)[0]||"",dias:ed.dias,ajudantes:ed.ajudantes,dataDesmontagem:"",valor:ed.valor,
+        sinal:c.sinal,pagamentoOutro:"",pix:"",limiteDespesa:c.limiteDespesa,diaria:c.diaria,
         prazoConceito:c.prazoConceito,prazoAprovacao:c.prazoAprovacao,revisoes:c.revisoes,diasCancel:c.diasCancel,retencao:c.retencao,retencaoMax:c.retencaoMax,
-        prazoFotos:c.prazoFotos,multaFotos:c.multaFotos,foro:c.foro,cidade:c.cidade,dataAssinatura:S.hoje()}});
+        prazoFotos:c.prazoFotos,multaFotos:c.multaFotos,foro:c.foro,cidade:c.cidade,dataAssinatura:S.hoje()},pagContrato(ed))});
   }
   function ligar(){
     $("[data-salvar]",m).addEventListener("click",function(){var novo=!ed.id,ja=ed.contratoCriado;salvar().then(function(){if(novo&&ja===ed.contratoCriado)desenhar();},function(e){if(!e||e.code!=="validacao")S.erroGravar(e);});});
@@ -333,6 +361,9 @@ M.proposta={render:function(m,id,vista){
         /* os avisos de WhatsApp desta proposta saem junto do Início */
         return Promise.all(St.list("avisos").filter(function(a){return a.propostaId===pid;}).map(function(a){return St.excluir("avisos",a.id).catch(function(){});}));
       }).then(function(){location.hash="#adm/propostas";},S.erroGravar);});});
+    $("#ed-datas",m).addEventListener("click",function(e){var a=e.target.closest("[data-add-data]"),r=e.target.closest("[data-rem-data]");if(!a&&!r)return;
+      ed.datasExtra=(ed.datasExtra||[]).slice();if(a)ed.datasExtra.push("");else ed.datasExtra.splice(+r.getAttribute("data-rem-data"),1);
+      $("#ed-datas",m).innerHTML=datasHTML();if(a){var ns=$$("[data-dx]",m);if(ns.length)ns[ns.length-1].focus();}previa();});
     $("[data-add-amb]",m).addEventListener("click",function(){ed.ambientes.push({nome:"",m2:"",fotos:[]});$("#ed-amb",m).innerHTML=ambHTML();recalc(true);});
     $("#ed-amb",m).addEventListener("click",function(e){var b=e.target.closest("[data-rem-amb]");if(!b)return;ed.ambientes.splice(+b.getAttribute("data-rem-amb"),1);if(!ed.ambientes.length)ed.ambientes.push({nome:"",m2:"",fotos:[]});$("#ed-amb",m).innerHTML=ambHTML();recalc(true);});
     $$("[data-aba]",m).forEach(function(b){b.addEventListener("click",function(){aba=b.getAttribute("data-aba");$$("[data-aba]",m).forEach(function(x){x.setAttribute("aria-selected",x===b?"true":"false");});previa();});});
@@ -359,6 +390,7 @@ M.proposta={render:function(m,id,vista){
       ed.portfolio=lp;previa();return;
     }
     if(t.getAttribute("data-k")==="semPortfolio"){ed.semPortfolio=t.checked;var ep=$("#ed-port",m);if(ep)ep.hidden=t.checked;previa();return;}
+    if(t.hasAttribute("data-dx")){ed.datasExtra[+t.getAttribute("data-dx")]=t.value;previa();return;}
     if(t.hasAttribute("data-ak")){var lin=t.closest("[data-ai]");ed.ambientes[+lin.getAttribute("data-ai")][t.getAttribute("data-ak")]=t.value;recalc(e.type==="change");return;}
     var k=t.getAttribute("data-k");if(!k)return;
     var v=t.type==="checkbox"?t.checked:t.value;
@@ -426,7 +458,8 @@ M.contrato={render:function(m,id,vista){
         '<label class="f f--full">Cliente (contratante)'+selectHTML('data-cli',opcoesClientes(),ed.clienteId)+'</label>'+
         '<div class="acoes f--full"><button type="button" class="lnk" data-editar-cli'+(cli?'':' hidden')+'>'+ik("editar")+'Completar dados do cliente</button><button type="button" class="lnk" data-novo-cli>'+ik("mais")+'Cadastrar cliente</button><button type="button" class="lnk" data-copiar-link="'+esc(linkCadastro("cadastro-cliente"))+'">'+ik("link")+'Copiar link para o cliente preencher</button></div>'+
         '<label class="f f--full">Proposta (Anexo I)'+selectHTML('data-prop',propOpts(),ed.propostaId)+'<small>Ao escolher, ambientes, valor, prazo e data vêm da proposta, e ela entra inteira no Anexo I do contrato (na prévia e no .docx).</small></label>'+
-        '<p class="nota f--full">Seus dados de contratado (CPF, CAU, endereço, PIX) ficam em <a class="lnk" href="#adm/ajustes">Ajustes</a>.</p>'+
+        S.campos([{k:"campos.contratadoComo",r:"Contratado em nome de",t:"select",o:[["pf","Pessoa física (CPF)"],["pj","Empresa (CNPJ)"]],full:1,ajuda:"Pessoa física: o contrato fala só em recibo. Empresa: recibo ou nota fiscal, com a razão social e o CNPJ."}],ed)+
+        '<p class="nota f--full">Seus dados de contratado (CPF, CNPJ, razão social, CAU, endereço, PIX) ficam em <a class="lnk" href="#adm/ajustes">Ajustes</a>.</p>'+
       '</div></section>'+
       '<section class="ed__bloco"><h2>'+ik("producoes")+'Serviço</h2><div class="fgrid">'+S.campos([
         {k:"campos.finalidade",r:"Finalidade",t:"select",o:opcoesFin()},
@@ -437,9 +470,9 @@ M.contrato={render:function(m,id,vista){
         {k:"campos.dataDesmontagem",r:"Desmontagem e devolução das peças",t:"date"}],ed)+'</div></section>'+
       '<section class="ed__bloco"><h2>'+ik("financeiro")+'Valor e pagamento</h2><div class="fgrid">'+S.campos([
         {k:"campos.valor",r:"Valor total (R$)",t:"money"},
-        {k:"campos.pagamentoTipo",r:"Forma",t:"select",o:[["sinal","Sinal + saldo"],["vista","À vista na assinatura"],["outro","Outra"]]},
-        {k:"campos.sinal",r:"Sinal (%)",t:"pct"},{k:"campos.pix",r:"Chave PIX",ph:"Se vazio, usa a de Ajustes"},
-        {k:"campos.pagamentoOutro",r:"Outra forma (texto)",full:1},
+        {k:"campos.pagamentoTipo",r:"Forma",t:"select",o:[["sinal","Sinal + saldo"],["vista","À vista na assinatura"],["parcelado","Parcelado (mensal)"],["outro","Outra"]]},
+        {k:"campos.sinal",r:"Sinal (%)",t:"pct"},{k:"campos.nParcelas",r:"Número de vezes (parcelado)",t:"select",o:NPARC},
+        {k:"campos.pagamentoOutro",r:"Outra forma (texto)",full:1},{k:"campos.pix",r:"Chave PIX",ph:"Se vazio, usa a de Ajustes"},
         {k:"campos.limiteDespesa",r:"Despesa sem aprovação escrita até (R$)",t:"money"},{k:"campos.diaria",r:"Dia extra de trabalho (R$)",t:"money"}],ed)+
         '<p class="nota f--full">Ao marcar <b>Assinado</b>, tudo é feito sozinho: os recebimentos vão para o <a class="lnk" href="#adm/financeiro">Financeiro</a> em A receber (o sinal ou o valor à vista na data da assinatura e o saldo no início da produção) e a produção é criada em <a class="lnk" href="#adm/producoes">Produções</a>, já no calendário.</p></div></section>'+
       '<section class="ed__bloco"><h2>'+ik("relogio")+'Prazos e condições</h2><div class="fgrid">'+S.campos([
@@ -464,6 +497,8 @@ M.contrato={render:function(m,id,vista){
     var lancar=false,criarProd=false;
     if(ed.status==="enviado"&&!ed.enviadoEm)ed.enviadoEm=S.hoje(); /* data mostrada no Início */
     if(ed.status==="assinado"){
+      /* hora em que virou assinado: a função de e-mails (supabase/functions/lembretes) avisa o cliente uma vez só */
+      if(!ed.assinadoEm){var ant=ed.id&&St.get("contratos",ed.id);if(!ant||ant.status!=="assinado")ed.assinadoEm=S.agoraISO();}
       if(!ed.finLancado&&num(ed.campos.valor)){ed.finLancado=true;lancar=!St.list("financeiro").some(function(f){return ed.id&&f.contratoId===ed.id;});}
       if(!ed.prodCriada){ed.prodCriada=true;criarProd=!prodDoContrato(ed.id);}
     }
@@ -492,6 +527,10 @@ M.contrato={render:function(m,id,vista){
     if(c.pagamentoTipo==="sinal"){var a=Math.round(total*(num(c.sinal)||50))/100;
       l.push(Object.assign({rot:"sinal"},base,{data:c.dataAssinatura||S.hoje(),descricao:"Sinal · contrato "+ed.num+" · "+nome,categoria:"Sinal de contrato",valor:a}));
       l.push(Object.assign({rot:"saldo"},base,{data:c.dataInicio||c.dataAssinatura||S.hoje(),descricao:"Saldo · contrato "+ed.num+" · "+nome,categoria:"Produção",valor:Math.round((total-a)*100)/100}));}
+    else if(c.pagamentoTipo==="parcelado"){ /* mensal, a 1ª na assinatura; cada parcela é um lançamento do mesmo grupo, como o Parcelado do Financeiro */
+      var x=S.parcelasValor(total,Math.max(2,Math.round(num(c.nParcelas)||3))),g=S.uid(),ini=c.dataAssinatura||S.hoje();
+      for(var i=0;i<x.n;i++)l.push(Object.assign({rot:"parcela "+(i+1)+"/"+x.n},base,{data:somaMes(ini,i),descricao:"Parcela "+(i+1)+"/"+x.n+" · contrato "+ed.num+" · "+nome,categoria:"Produção",
+        valor:x.valor(i),parcGrupo:g,parcela:i+1,parcelas:x.n}));}
     else l.push(Object.assign({rot:"total"},base,{data:c.pagamentoTipo==="vista"?(c.dataAssinatura||S.hoje()):(c.dataInicio||c.dataAssinatura||S.hoje()),descricao:"Contrato "+ed.num+" · "+nome,categoria:"Produção",valor:total}));
     return l;
   }
@@ -513,8 +552,8 @@ M.contrato={render:function(m,id,vista){
     if(t.hasAttribute("data-cli")){if(e.type!=="change")return;ed.clienteId=t.value;var b=$("[data-editar-cli]",m);if(b)b.hidden=!t.value;previa();return;}
     if(t.hasAttribute("data-prop")){
       if(e.type!=="change")return;ed.propostaId=t.value;var p=t.value?St.get("propostas",t.value):null;
-      if(p){var c=ed.campos;c.finalidade=p.finalidade;c.ambientes=S.listaAmbientes(p);c.valor=p.valor;c.dias=p.dias;c.ajudantes=p.ajudantes;if(p.dataSugerida)c.dataInicio=p.dataSugerida;if(p.clienteId&&!ed.clienteId)ed.clienteId=p.clienteId;
-        c.pagamentoTipo=S.normal(p.pagamento).indexOf("vista")>=0?"vista":(c.pagamentoTipo||"sinal");desenhar();}
+      if(p){var c=ed.campos;c.finalidade=p.finalidade;c.ambientes=S.listaAmbientes(p);c.valor=p.valor;c.dias=p.dias;c.ajudantes=p.ajudantes;var dp=S.datasProposta(p);if(dp[0])c.dataInicio=dp[0];if(p.clienteId&&!ed.clienteId)ed.clienteId=p.clienteId;
+        Object.assign(c,pagContrato(p));desenhar();}
       else previa();
       return;
     }
@@ -1082,14 +1121,14 @@ M.producao={
       ed.pecas.forEach(function(x){
         var v=Math.round(num(x.valor)*num(x.art))/100;if(ed.status==="cancelada"||!v)return;
         var p=nomeParceiro(x.parceiroId)||"";
-        var d={tipo:"entrada",data:x.dataRT||ed.dataFim||ed.dataInicio||S.hoje(),descricao:"RT · "+(p?p+" · ":"")+(ed.titulo||"produção"),pagador:p,categoria:"RT / comissão",valor:v,producaoId:pid,contratoId:ed.contratoId||"",rtPeca:x.id};
+        var d={tipo:"entrada",data:x.dataRT||ed.dataFim||ed.dataInicio||S.hoje(),descricao:"RT · "+(p?p+" · ":"")+(ed.titulo||"produção"),pagador:p,categoria:"RT / comissão",valor:v,producaoId:pid,contratoId:ed.contratoId||"",rtPeca:x.id,parceiroId:x.parceiroId||""};
         /* acha o lançamento desta peça (ou um lançado à mão antes, com o mesmo parceiro e valor) */
         var e=lanc.filter(function(f){return f.rtPeca===x.id;})[0]||lanc.filter(function(f){return !f.rtPeca&&!f.parcGrupo&&!usados[f.id]&&num(f.valor)===v&&(f.pagador||"")===p;})[0];
         /* RT parcelada no Financeiro (2026-11-23): as parcelas ficam como estão, sem voltar a ser um lançamento só */
         if(e&&e.parcGrupo){lanc.forEach(function(f){if(f.parcGrupo===e.parcGrupo)usados[f.id]=1;});return;}
         if(!e){fila.push(["rt-"+pid+"-"+x.id,Object.assign(d,{status:"pendente",forma:"PIX",criadoEm:S.agoraISO()})]);return;}
         usados[e.id]=1;
-        if(e.status==="pago"||["data","descricao","pagador","valor","contratoId","rtPeca"].every(function(k){return String(e[k]==null?"":e[k])===String(d[k]);}))return;
+        if(e.status==="pago"||["data","descricao","pagador","valor","contratoId","rtPeca","parceiroId"].every(function(k){return String(e[k]==null?"":e[k])===String(d[k]);}))return;
         var c=St.copia("financeiro",e.id);delete c.id;fila.push([e.id,Object.assign(c,d)]);
       });
       lanc.forEach(function(f){if(!usados[f.id]&&f.status!=="pago")fila.push([f.id,null]);});
@@ -1139,15 +1178,28 @@ function modalFin(id,tipo){
   /* Parcelado (pedido da Isys, 2026-11-23, ex.: RT em 6x): valor total + número de parcelas + 1ª cobrança → lista de parcelas editável */
   if(!ehParc)cs.push({k:"parcelado",r:"Parcelado: dividir em várias cobranças",t:"check",full:1},{k:"nParcelas",r:"Número de parcelas",t:"number"});
   cs.push({k:"status",r:"Status",t:"select",o:S.opcoes("financeiro")},{k:"forma",r:"Forma",t:"select",o:["PIX","Transferência","Dinheiro","Cartão","Boleto"]},
-      {k:"contratoId",r:"Contrato",t:"select",o:cons},{k:"pagador",r:"Quem pagou ou recebeu"},{k:"obs",r:"Observação",t:"area",full:1});
+      {k:"contratoId",r:"Contrato",t:"select",o:cons});
+  /* Recibo por e-mail (pedido da Isys, 2026-11-24): entrada de contrato marcada como Paga → a função de e-mails manda o recibo ao cliente, uma vez só */
+  var rec=id?St.get("lembretes","recibo-"+id):null,pagoAntes=f.status==="pago";
+  if(!rec){cs.push({k:"enviarRecibo",r:"Enviar recibo ao cliente por e-mail",t:"check",full:1});if(!pagoAntes)f.enviarRecibo=true;}
+  cs.push({k:"pagador",r:"Quem pagou ou recebeu"},{k:"obs",r:"Observação",t:"area",full:1});
   S.modalForm({sobre:"Financeiro",titulo:id?"Editar lançamento":(f.tipo==="saida"?"Nova saída":"Nova entrada"),dados:f,salvarRot:id?"Salvar":"+ Adicionar",campos:cs,
-    antes:ehParc?'<p class="nota" style="margin-bottom:var(--s-16)"><b>Parcela '+esc(f.parcela)+' de '+esc(f.parcelas)+'.</b> As mudanças valem só para esta parcela.</p>':'',
-    aoAbrir:function(d){if(!ehParc)par=ligarParcelas(d);},
+    antes:(ehParc?'<p class="nota" style="margin-bottom:var(--s-16)"><b>Parcela '+esc(f.parcela)+' de '+esc(f.parcelas)+'.</b> As mudanças valem só para esta parcela.</p>':'')+
+      (rec?'<p class="nota" style="margin-bottom:var(--s-16)">Recibo nº '+esc(rec.num)+' enviado ao cliente em '+esc(S.dataBR(String(rec.enviadoEm||"").slice(0,10)))+'.</p>':''),
+    aoAbrir:function(d){if(!ehParc)par=ligarParcelas(d);
+      var ck=$('[data-k="enviarRecibo"]',d);if(!ck)return;var lb=ck.closest("label");
+      function ver(){var g=function(k){var e=$('[data-k="'+k+'"]',d);return e?e.value:"";};
+        lb.hidden=!(g("tipo")==="entrada"&&g("contratoId")&&g("status")==="pago"&&g("categoria")!=="RT / comissão");}
+      d.addEventListener("change",ver);ver();},
     /* entrada sem contrato nem produção = recebimento avulso (consultoria, serviços) */
     aoSalvar:function(v){
-      var parcelado=!!v.parcelado;delete v.parcelado;delete v.nParcelas;
+      var parcelado=!!v.parcelado;delete v.parcelado;delete v.nParcelas;if(parcelado){delete v.enviarRecibo;delete f.enviarRecibo;}
       if(!num(v.valor)){S.toast(parcelado?"Informe o valor total.":"Informe um valor.");return false;}
-      if(!parcelado){var corpo=Object.assign({},f,v);delete corpo.id;corpo.avulso=corpo.tipo==="entrada"&&!corpo.contratoId&&!corpo.producaoId;if(!id)corpo.criadoEm=S.agoraISO();return St.salvar("financeiro",id||null,corpo).then(function(){S.toast("Lançamento salvo.");});}
+      if(!parcelado){var corpo=Object.assign({},f,v);delete corpo.id;corpo.avulso=corpo.tipo==="entrada"&&!corpo.contratoId&&!corpo.producaoId;if(!id)corpo.criadoEm=S.agoraISO();
+        /* pagoEm = quando virou Pago (data do recibo); enviarRecibo só fica em entrada de contrato paga */
+        if(corpo.status!=="pago")delete corpo.pagoEm;else if(!pagoAntes||(corpo.enviarRecibo&&!corpo.pagoEm))corpo.pagoEm=S.agoraISO();
+        if(!(corpo.enviarRecibo&&corpo.status==="pago"&&corpo.tipo==="entrada"&&corpo.contratoId&&corpo.categoria!=="RT / comissão"))delete corpo.enviarRecibo;
+        return St.salvar("financeiro",id||null,corpo).then(function(){S.toast("Lançamento salvo.");});}
       var ls=par.linhas(),n=ls.length;
       if(n<2){S.toast("Informe de 2 a 60 parcelas.");return false;}
       if(ls.some(function(l){return !l.data||!(num(l.valor)>0);})){S.toast("Confira a data e o valor de cada parcela.");return false;}
@@ -2058,7 +2110,7 @@ M.ajustes={render:function(m,id,vista){
     {k:"whatsappAdm",r:"WhatsApp que recebe os pedidos",t:"tel"},{k:"siteUrl",r:"Endereço do site",ajuda:"Usado nos links de cadastro. Troque pelo domínio quando o site for publicado."}],c)+'</div></section>'+
   '<section class="sis-sec"><h2>'+ik("clientes")+'Seus dados no contrato<small>Ficam guardados só para o administrador.</small></h2><div class="fgrid">'+S.campos([
     {k:"contratado.nome",r:"Nome completo"},{k:"contratado.marca",r:"Marca"},{k:"contratado.nacionalidade",r:"Nacionalidade"},{k:"contratado.profissao",r:"Profissão"},
-    {k:"contratado.cpf",r:"CPF"},{k:"contratado.cnpj",r:"CNPJ"},{k:"contratado.cau",r:"Registro CAU"},{k:"contratado.pix",r:"Chave PIX"},
+    {k:"contratado.cpf",r:"CPF"},{k:"contratado.cnpj",r:"CNPJ"},{k:"contratado.razao",r:"Razão social da empresa",full:1,ajuda:"Usada quando o contrato for em nome da empresa."},{k:"contratado.cau",r:"Registro CAU"},{k:"contratado.pix",r:"Chave PIX"},
     {k:"contratado.endereco",r:"Endereço profissional",full:1},
     {k:"contratado.email",r:"E-mail",t:"email"},{k:"contratado.telefone",r:"Telefone"},{k:"contratado.instagram",r:"Instagram"},{k:"contratado.cidade",r:"Cidade (proposta)"}],c)+'</div></section>'+
   '<section class="sis-sec"><h2>'+ik("contratos")+'Padrões do contrato</h2><div class="fgrid">'+S.campos([

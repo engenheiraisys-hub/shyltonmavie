@@ -562,6 +562,7 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .sl--escopo li{margin:0}
 /* Próximos passos: mesma página do escopo; itens curtos e centrados, sem marcador (como a referência da Isys, 2026-11-23) */
 .sl--passos ul{list-style:none;padding:0}
+.sl--passos .sl__txt{top:0;bottom:0;display:flex;flex-direction:column;justify-content:center} /* texto no meio da página (pedido da Isys, 2026-11-24) */
 .sl--passos .sl__txt ul + p{margin-top:1.6cqw}
 /* 5 investimento (abertura) */
 .sl--abre .sl__h{position:absolute;left:5.6cqw;top:25cqw;font-weight:200;font-size:2.9cqw;letter-spacing:-.05em;line-height:1}

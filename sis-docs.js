@@ -63,7 +63,7 @@ function slidesHTML(p){
   var passos='<section class="sl sl--abre"><p class="sl__h"><b>'+nPas+'</b>PRÓXIMOS PASSOS</p><p class="sl__sub">/ Para te ajudar nos próximos passos</p></section>'+
     '<section class="sl sl--escopo sl--passos"><span class="sl__simb">'+SIMB+'</span><div class="sl__txt"><ul>'+
       '<li><b>Validade da proposta:</b> '+val+' dia'+(val>1?'s':'')+'</li><li>Dados para cadastro</li><li>Desenvolvimento do contrato</li><li>Assinatura do contrato</li><li>Pagamento</li></ul>'+
-      (p.dataSugerida?'<p><b>Início da produção:</b> '+esc(S.dataBR(p.dataSugerida))+'</p>':'')+'</div></section>';
+      (function(d){d=d.map(S.dataBR);return d.length>1?'<p><b>Datas sugeridas para a produção:</b> '+esc(d.slice(0,-1).join(", ")+" e "+d[d.length-1])+'</p>':d.length?'<p><b>Início da produção:</b> '+esc(d[0])+'</p>':'';})(S.datasProposta(p))+'</div></section>';
   return ''+
   '<section class="sl sl--capa"><div class="lock">'+SIMB+'<span>produção</span></div></section>'+
   '<section class="sl sl--marca">'+assinatura()+'<p class="sl__rod">'+SIMB+'/ '+esc(cli.nome||"Cliente")+'<small>Arquiteto, Urbanista e Produtor Shylton Mavie, '+esc(String(p.data||S.hoje()).slice(0,4))+'</small></p></section>'+
@@ -370,26 +370,33 @@ function qualifContratante(c){
   return v(c.nome,"nome")+", "+v(c.nacionalidade,"nacionalidade")+", "+v(c.estadoCivil,"estado civil")+", "+v(c.profissao,"profissão")+", inscrito(a) no CPF sob o nº "+v(c.doc,"CPF")+
     (c.rg?", portador(a) do RG nº "+c.rg:"")+", residente e domiciliado(a) em "+v(enderecoCli(c),"endereço completo")+", e-mail "+v(c.email,"e-mail")+", telefone "+v(c.telefone,"telefone")+".";
 }
-function qualifContratado(k){
-  return v(k.nome,"nome do contratado")+", "+v(k.nacionalidade,"nacionalidade")+", "+v(k.profissao,"profissão")+", inscrito no CAU sob o nº "+v(k.cau,"registro CAU")+", inscrito no CPF sob o nº "+v(k.cpf,"CPF do contratado")+(k.cnpj?" e no CNPJ sob o nº "+k.cnpj:"")+
+/* Contratado em nome de (pedido da Isys, 2026-11-24): pessoa física (CPF, só recibo) ou empresa (CNPJ, recibo ou nota fiscal) */
+function kPJ(c){return (c&&c.contratadoComo)==="pj";}
+function qualifContratado(k,pj){
+  if(pj)return v(k.razao,"razão social da empresa")+", pessoa jurídica inscrita no CNPJ sob o nº "+v(k.cnpj,"CNPJ da empresa")+", com sede em "+v(k.endereco,"endereço da empresa")+", e-mail "+v(k.email,"e-mail")+", telefone "+v(k.telefone,"telefone")+", que atua sob a marca "+v(k.marca,"marca")+
+    ", neste ato representada por "+v(k.nome,"nome do contratado")+", "+v(k.nacionalidade,"nacionalidade")+", "+v(k.profissao,"profissão")+", inscrito no CAU sob o nº "+v(k.cau,"registro CAU")+" e no CPF sob o nº "+v(k.cpf,"CPF do contratado")+".";
+  return v(k.nome,"nome do contratado")+", "+v(k.nacionalidade,"nacionalidade")+", "+v(k.profissao,"profissão")+", inscrito no CAU sob o nº "+v(k.cau,"registro CAU")+", inscrito no CPF sob o nº "+v(k.cpf,"CPF do contratado")+
     ", com endereço profissional em "+v(k.endereco,"endereço profissional")+", e-mail "+v(k.email,"e-mail")+", telefone "+v(k.telefone,"telefone")+", que atua sob a marca "+v(k.marca,"marca")+".";
 }
 function formaPagamento(c){
   var total=num(c.valor);
   if(c.pagamentoTipo==="vista")return "à vista, na assinatura deste contrato";
   if(c.pagamentoTipo==="outro")return v(c.pagamentoOutro,"forma de pagamento");
+  if(c.pagamentoTipo==="parcelado"){var x=S.parcelasValor(total,Math.max(2,Math.round(num(c.nParcelas)||3)));
+    return "em "+x.n+" ("+S.extenso(x.n).replace(/ reais?$/,"")+") parcelas mensais "+(x.r?"("+x.r+" de "+S.brl(x.maior)+" e "+(x.n-x.r)+" de "+S.brl(x.base)+")":"de "+S.brl(x.base))+
+      ", vencendo a primeira na assinatura deste contrato e as demais no mesmo dia dos meses seguintes";}
   var s=num(c.sinal)||50,a=total*s/100;
   return S.fmtNum(s)+"% ("+S.brl(a)+") na assinatura deste contrato, para reserva da data, e "+S.fmtNum(100-s)+"% ("+S.brl(total-a)+") até o primeiro dia da produção";
 }
 function contexto(ct){
   var c=ct.campos||{},cli=ct.clienteId?S.Store.get("clientes",ct.clienteId):null,k=S.cfg().contratado;
   var prop=ct.propostaId?S.Store.get("propostas",ct.propostaId):null;
-  var dias=Math.max(1,Math.round(num(c.dias)||1));
+  var dias=Math.max(1,Math.round(num(c.dias)||1)),pj=kPJ(c);
   return {
     marca:NOME.toUpperCase(), /* cabeçalho = assinatura do site; a marca de Ajustes vai na qualificação do contratado */
     numero:v(ct.num,"número"),
     contratante:qualifContratante(cli),
-    contratado:qualifContratado(k),
+    contratado:qualifContratado(k,pj),
     proposta:prop?prop.num:falta("nº da proposta"),
     finalidade:FIN_CONTRATO[c.finalidade]?FIN_CONTRATO[c.finalidade]:falta("finalidade"),
     ambientes:v(c.ambientes,"ambientes"),
@@ -401,7 +408,7 @@ function contexto(ct){
     valor:num(c.valor)?S.brl(c.valor):falta("valor"),
     valorExtenso:num(c.valor)?S.extenso(c.valor):falta("valor por extenso"),
     pagamento:formaPagamento(c),
-    pix:v(c.pix||k.pix,"chave PIX"),
+    pix:v(c.pix||k.pix,"chave PIX"),comprovante:pj?"recibo ou nota fiscal":"recibo",
     limite:S.brl(c.limiteDespesa),diaria:S.brl(c.diaria),
     prazoConceito:String(num(c.prazoConceito)),prazoAprovacao:String(num(c.prazoAprovacao)),revisoes:String(num(c.revisoes)),
     diasCancel:String(num(c.diasCancel)),retencao:S.fmtNum(c.retencao),retencaoMax:S.fmtNum(c.retencaoMax),
@@ -410,7 +417,7 @@ function contexto(ct){
     instagram:k.instagram||"@shyltu",
     nomeCli:cli?v(cli.nome,"nome do contratante"):falta("nome do contratante"),
     docCli:cli?(S.ehPJ(cli.tipo)?"CNPJ ":"CPF ")+v(cli.doc,S.ehPJ(cli.tipo)?"CNPJ":"CPF"):"",
-    nomeK:v(k.nome,"nome do contratado"),cpfK:"CPF "+v(k.cpf,"CPF do contratado")+(k.cnpj?" · CNPJ "+k.cnpj:"")
+    nomeK:pj?v(k.razao,"razão social da empresa"):v(k.nome,"nome do contratado"),cpfK:pj?"CNPJ "+v(k.cnpj,"CNPJ da empresa"):"CPF "+v(k.cpf,"CPF do contratado")
   };
 }
 /* Modelo revisado. **negrito**; {chave} vem do contexto. */
@@ -436,7 +443,7 @@ var MODELO=[
  ["p","3.4. Aprovações e pedidos de ajuste podem ser feitos por e-mail ou WhatsApp e valem como manifestação por escrito."],
  ["h","CLÁUSULA 4 — VALOR E FORMA DE PAGAMENTO"],
  ["p","4.1. Pelos serviços, o CONTRATANTE pagará ao CONTRATADO {valor} ({valorExtenso}), da seguinte forma: {pagamento}."],
- ["p","4.2. Os pagamentos serão feitos por PIX (chave {pix}) ou transferência para conta de titularidade do CONTRATADO, que emitirá recibo ou nota fiscal de cada pagamento."],
+ ["p","4.2. Os pagamentos serão feitos por PIX (chave {pix}) ou transferência para conta de titularidade do CONTRATADO, que emitirá {comprovante} de cada pagamento."],
  ["p","4.3. O atraso no pagamento sujeita a parcela em atraso a multa de 2% (dois por cento), juros de 1% (um por cento) ao mês e correção monetária pelo IPCA, calculados dia a dia."],
  ["p","4.4. Despesas extras de produção não reembolsáveis (folhagens, fretes, embalagens, materiais de consumo, estacionamento) dependem de aprovação prévia do CONTRATANTE e serão reembolsadas em até 5 (cinco) dias úteis após a apresentação dos comprovantes. Despesas acima de {limite} por item exigem aprovação por escrito."],
  ["p","4.5. Cada dia adicional de trabalho além do previsto na Cláusula 2.1, por motivo não atribuível ao CONTRATADO, será cobrado à razão de {diaria} por dia."],
