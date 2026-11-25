@@ -26,7 +26,8 @@ var IK={
   lupa:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5l5 5"/>',
   seta:'<path d="M9.5 6l6 6-6 6"/>',
   entrega:'<path d="M3.5 6.5h10v10h-10z"/><path d="M13.5 10h4l3 3.5v3h-7"/><circle cx="7.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/>',
-  retirada:'<path d="M4 11v9.5h16V11"/><path d="M12 16V3.5M7.5 8l4.5-4.5L16.5 8"/>'
+  retirada:'<path d="M4 11v9.5h16V11"/><path d="M12 16V3.5M7.5 8l4.5-4.5L16.5 8"/>',
+  negrito:'<path d="M7.5 4.5h5.5a3.5 3.5 0 0 1 0 7H7.5zM7.5 11.5h6.5a4 4 0 0 1 0 8H7.5z"/>'
 };
 function ik(n,cl){return '<svg class="'+(cl||"ik")+'" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+(IK[n]||S.ICO[n]||"")+'</svg>';}
 /* Ícone do título da página: o mesmo do item do menu (telas de detalhe usam o da lista) */
@@ -482,15 +483,73 @@ M.contrato={render:function(m,id,vista){
         {k:"campos.prazoFotos",r:"Prazo para enviar as fotos (dias)",t:"number"},{k:"campos.multaFotos",r:"Multa se não enviar (%)",t:"pct"}],ed)+'</div></section>'+
       '<section class="ed__bloco"><h2>'+ik("contratos")+'Assinatura</h2><div class="fgrid">'+S.campos([
         {k:"campos.cidade",r:"Cidade"},{k:"campos.dataAssinatura",r:"Data",t:"date"},{k:"campos.foro",r:"Foro (comarca)",full:1}],ed)+'</div></section>'+
-    '</div><aside class="ed__prev"><div class="abas-mini" role="tablist"><button type="button" role="tab" data-aba="contrato" aria-selected="'+(aba==="contrato")+'">'+ik("contratos")+'Contrato</button><button type="button" role="tab" data-aba="revisao" aria-selected="'+(aba==="revisao")+'">'+ik("trocar")+'O que mudou no modelo</button></div><p class="nota" id="ed-falta" style="margin-bottom:var(--s-12)"></p><div class="ed__prev-corpo" id="ed-prev"></div></aside></div>';
+    '</div><aside class="ed__prev"><div class="abas-mini" role="tablist"><button type="button" role="tab" data-aba="contrato" aria-selected="'+(aba==="contrato")+'">'+ik("contratos")+'Contrato</button><button type="button" role="tab" data-aba="revisao" aria-selected="'+(aba==="revisao")+'">'+ik("trocar")+'O que mudou no modelo</button></div><p class="nota" id="ed-falta" style="margin-bottom:var(--s-12)"></p><div id="ed-txt"></div><div class="ed__prev-corpo" id="ed-prev"></div></aside></div>';
     ligar();previa();
   }
-  var previa=S.debounce(function(){
-    var box=$("#ed-prev",m),fl=$("#ed-falta",m);if(!box)return;
-    var f=S.faltando(ed);
+  /* Editar o texto do contrato na própria prévia (pedido da Isys, 2026-11-25): clicar no parágrafo e escrever.
+     Fica em ed.campos.texto (ver blocosContrato em sis-docs.js) e vale na prévia, no PDF, no .docx e na área do cliente. */
+  var editTxt=false,sel=-1,rendendo=false;
+  function atualizaFalta(){
+    var fl=$("#ed-falta",m);if(!fl)return;var f=S.faltando(ed);
     fl.innerHTML=f.length?'<b>Falta preencher:</b> '+esc(f.join(", "))+'. Os campos aparecem destacados no texto.':'<span class="pos">Contrato completo, pronto para baixar e enviar para assinatura.</span>';
-    box.innerHTML=aba==="contrato"?S.contratoHTML(ed):S.revisaoHTML();
-  },160);
+  }
+  function btTxt(a,i,r){return '<button type="button" class="btn btn--linha" data-txt="'+a+'">'+ik(i)+r+'</button>';}
+  function barraTxt(){
+    var tem=!!S.textoContrato(ed);
+    if(!editTxt)return '<div class="txt-barra"><button type="button" class="btn btn--linha" data-txt="editar">'+ik("editar")+'Editar o texto</button>'+
+      (tem?'<span class="nota">O texto deste contrato foi alterado.</span><button type="button" class="lnk" data-txt="padrao">'+ik("trocar")+'Voltar ao texto padrão</button>':'')+'</div>';
+    return '<div class="txt-barra txt-barra--on"><p class="nota">Clique no parágrafo e escreva. <b>Enter</b> cria um parágrafo abaixo e <b>Ctrl+B</b> põe em negrito. '+
+      'Parágrafo alterado fica fixo: não muda mais com os campos do formulário (use Restaurar para voltar ao original).</p><div class="acoes">'+
+      btTxt("neg","negrito","Negrito")+btTxt("par","mais","Parágrafo")+btTxt("tit","mais","Título de cláusula")+btTxt("rest","trocar","Restaurar parágrafo")+btTxt("rem","excluir","Remover parágrafo")+
+      (tem?btTxt("padrao","trocar","Voltar ao texto padrão"):'')+'<button type="button" class="btn btn--escuro" data-txt="fim">'+ik("ok")+'Concluir</button></div></div>';
+  }
+  function blocoTxt(i){var l=S.textoContrato(ed)||S.modeloContrato();return i>=0?l[i]:null;}
+  function atualizaBarra(){
+    var tb=$("#ed-txt",m);if(!tb)return;tb.innerHTML=aba==="contrato"?barraTxt():"";if(!editTxt)return;
+    var b=blocoTxt(sel),dis=function(a,v){var x=$('[data-txt="'+a+'"]',tb);if(x)x.disabled=v;};
+    dis("neg",!b);dis("par",!b);dis("tit",!b);dis("rest",!(b&&b.txt!=null&&b.tpl!=null));dis("rem",!b);
+  }
+  function garantirTexto(){if(!S.textoContrato(ed))ed.campos.texto=S.modeloContrato();return ed.campos.texto;}
+  function ativo(){var a=document.activeElement;return a&&a.hasAttribute&&a.hasAttribute("data-bl")&&m.contains(a)?a:null;}
+  /* guarda o parágrafo: igual ao de antes → nada; vazio → sai do contrato; senão vira texto fixo */
+  function commit(el){
+    var i=+el.getAttribute("data-bl"),novo=S.textoDoBloco(el);
+    if(!novo){garantirTexto().splice(i,1);return "removido";}
+    if(novo===el._orig)return false;
+    var b=garantirTexto()[i];if(!b)return false;
+    b.txt=novo;el._orig=novo;el.setAttribute("data-editado","");atualizaFalta();atualizaBarra();return true;
+  }
+  function focar(i){
+    var el=$('[data-bl="'+i+'"]',m);if(!el)return;el.focus();
+    var r=document.createRange();r.selectNodeContents(el);r.collapse(false);var s=window.getSelection();s.removeAllRanges();s.addRange(r);
+    el.scrollIntoView({block:"nearest"});
+  }
+  function renderTxt(foco){
+    var box=$("#ed-prev",m);if(!box)return;
+    rendendo=true;box.innerHTML=S.contratoHTML(ed,true);rendendo=false;
+    sel=foco==null?-1:foco;atualizaFalta();atualizaBarra();if(foco!=null)focar(foco);
+  }
+  function acaoTxt(a){
+    if(a==="editar"){editTxt=true;sel=-1;previaAgora();return;}
+    if(a==="fim"){var f0=ativo();if(f0){rendendo=true;commit(f0);rendendo=false;}editTxt=false;sel=-1;previaAgora();S.toast("Texto do contrato atualizado. Salve o contrato para guardar.");return;}
+    if(a==="padrao"){S.confirmar({perigo:false,sobre:"Texto do contrato",ico:"trocar",icoOk:"trocar",titulo:"Voltar ao texto padrão?",ok:"Voltar ao padrão",
+      texto:"As mudanças no texto deste contrato serão desfeitas. Os campos do formulário continuam como estão."}).then(function(sim){if(!sim)return;delete ed.campos.texto;sel=-1;previaAgora();});return;}
+    if(a==="neg"){if(ativo())document.execCommand("bold");return;}
+    var at=ativo();if(at&&commit(at)==="removido")sel=-1;
+    if(sel<0){S.toast("Clique primeiro num parágrafo do contrato.");return;}
+    var l=garantirTexto(),b=l[sel];
+    if(a==="par"||a==="tit"){l.splice(sel+1,0,{t:a==="tit"?"h":"p",txt:""});renderTxt(sel+1);return;}
+    if(a==="rest"){if(b&&b.tpl!=null){delete b.txt;renderTxt(sel);}return;}
+    if(a==="rem"){var i=sel,ex=$('[data-bl="'+i+'"]',m),tx=ex?ex.textContent.trim():"";
+      S.confirmar({titulo:"Remover este parágrafo?",ok:"Remover",texto:(tx.length>140?tx.slice(0,140)+"…":tx)||"Parágrafo vazio."}).then(function(sim){if(!sim)return;l.splice(i,1);renderTxt(null);});}
+  }
+  function previaAgora(){
+    var box=$("#ed-prev",m);if(!box)return;
+    atualizaFalta();atualizaBarra();
+    if(aba==="contrato"&&editTxt&&box.contains(document.activeElement))return; /* não apaga o que está sendo escrito */
+    rendendo=true;box.innerHTML=aba==="contrato"?S.contratoHTML(ed,editTxt):S.revisaoHTML();rendendo=false;
+  }
+  var previa=S.debounce(previaAgora,160);
   /* Assinado → sozinho, uma vez por contrato: recebimentos em "A receber" no Financeiro (flag finLancado) e a produção em Produções/calendário (flag prodCriada).
      Sem botões: a Isys pediu (2026-11-09). Nunca duplica: confere se já há lançamento ou produção ligada ao contrato. */
   function salvar(){
@@ -565,6 +624,27 @@ M.contrato={render:function(m,id,vista){
     previa();
   }
   m.addEventListener("input",aoMudar);m.addEventListener("change",aoMudar);
+  /* edição do texto: botões da barra não tiram o foco do parágrafo (o negrito precisa da seleção) */
+  m.addEventListener("mousedown",function(e){if(editTxt&&e.target.closest&&e.target.closest("[data-txt]"))e.preventDefault();});
+  m.addEventListener("click",function(e){var b=e.target.closest&&e.target.closest("[data-txt]");if(b&&!b.disabled)acaoTxt(b.getAttribute("data-txt"));});
+  m.addEventListener("focusin",function(e){var el=e.target;if(!editTxt||!el.hasAttribute||!el.hasAttribute("data-bl"))return;
+    sel=+el.getAttribute("data-bl");el._orig=S.textoDoBloco(el);atualizaBarra();});
+  m.addEventListener("focusout",function(e){var el=e.target;if(rendendo||!editTxt||!el.hasAttribute||!el.hasAttribute("data-bl"))return;
+    var i=+el.getAttribute("data-bl"),p=e.relatedTarget,pi=p&&p.hasAttribute&&p.hasAttribute("data-bl")?+p.getAttribute("data-bl"):null;
+    if(commit(el)==="removido")renderTxt(pi==null?null:pi>i?pi-1:pi);});
+  m.addEventListener("keydown",function(e){var el=e.target;if(!editTxt||!el.hasAttribute||!el.hasAttribute("data-bl"))return;
+    if(e.key==="Escape"){el.blur();return;}
+    if(e.key!=="Enter")return;
+    e.preventDefault();var i=+el.getAttribute("data-bl");rendendo=true;var r=commit(el);rendendo=false;
+    if(r==="removido"){renderTxt(i>0?i-1:null);return;}
+    garantirTexto().splice(i+1,0,{t:"p",txt:""});renderTxt(i+1);});
+  /* colar: só o texto, sem a formatação de fora; várias linhas viram vários parágrafos */
+  m.addEventListener("paste",function(e){var el=e.target.closest&&e.target.closest("[data-bl]");if(!editTxt||!el)return;
+    e.preventDefault();var t=String((e.clipboardData||window.clipboardData).getData("text")||"").replace(/\s+$/,""),pr=t.split(/\r?\n/);
+    var ls=[pr[0].replace(/\s+/g," ")].concat(pr.slice(1).map(function(s){return s.trim();}).filter(Boolean)); /* a 1ª linha entra onde está o cursor, com o espaço do começo */
+    if(!t.trim())return;document.execCommand("insertText",false,ls[0]);if(ls.length<2)return;
+    var i=+el.getAttribute("data-bl");rendendo=true;commit(el);rendendo=false;var l=garantirTexto();
+    ls.slice(1).forEach(function(x,k){l.splice(i+1+k,0,{t:"p",txt:x});});renderTxt(i+ls.length-1);});
   desenhar();
 }};
 

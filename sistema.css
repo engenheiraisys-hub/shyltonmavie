@@ -523,6 +523,18 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .folha .sub{margin:14px 0 4px}
 .folha .li{position:relative;padding-left:1.4em;margin-bottom:4px;text-align:left}
 .folha .li::before{content:"•";position:absolute;left:.4em}
+/* Editar o texto do contrato na prévia (2026-11-25): parágrafo editável com contorno fino; alterado fica com fundo de papel */
+.txt-barra{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-8) var(--s-16);margin-bottom:var(--s-12)}
+.txt-barra--on{display:block;padding:var(--s-12);border:1px solid var(--linha);background:var(--papel)}
+.txt-barra--on .acoes{margin-top:var(--s-12);gap:var(--s-8)}
+.sis .txt-barra--on .btn{min-height:34px;padding:calc(var(--s-8) + 1px) var(--s-12) var(--s-8);gap:6px} /* barra compacta: a prévia é estreita */
+.txt-barra--on .btn .ik{width:14px;height:14px}
+.txt-barra .btn:disabled{opacity:.4;cursor:default}
+.folha--editar [data-bl]{cursor:text;outline:1px dashed transparent;outline-offset:3px;transition:outline-color var(--rapido)}
+.folha--editar [data-bl]:hover{outline-color:var(--pedra)}
+.folha--editar [data-bl]:focus{outline:1px solid var(--tinta)}
+.folha--editar [data-editado]{background:#F5F2EC}
+.folha--editar [data-bl]:empty::before{content:"Escreva aqui…";color:#9A968F}
 
 /* Proposta: slides 16:9 desenhados em cqw para ficarem iguais em qualquer largura */
 .slides{display:flex;flex-direction:column;gap:var(--s-16)}

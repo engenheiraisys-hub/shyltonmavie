@@ -517,25 +517,51 @@ function preencher(t,ctx){return t.replace(/\{(\w+)\}/g,function(_,k){return ctx
 function htmlTexto(t){
   return esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(new RegExp(A+"(.+?)"+F,"g"),'<mark>[$1]</mark>');
 }
-function contratoHTML(ct){
+/* Texto do contrato editado no próprio site (pedido da Isys, 2026-11-25). Fica em campos.texto (a área do cliente já recebe campos):
+   lista de blocos {t:tipo, tpl:texto do modelo com {chaves}} — não mexido, segue os campos do formulário — ou {t, txt:texto escrito}
+   (parágrafo editado ou novo; não se atualiza mais sozinho). Sem campos.texto vale o MODELO. Marca, assinaturas e Anexo I não se editam. */
+var TXT_EDITAVEL={titulo:1,centro:1,h:1,p:1};
+function textoContrato(ct){var l=ct&&ct.campos&&ct.campos.texto;return Array.isArray(l)&&l.length?l:null;}
+function blocosContrato(ct,ctx){
+  var l=textoContrato(ct)||MODELO.map(function(b){return {t:b[0],tpl:b[1]};});
+  return l.map(function(b){var ed=b.txt!=null,s=ed?String(b.txt):preencher(String(b.tpl||""),ctx);
+    if(b.t==="titulo"||b.t==="h")s=s.replace(/\*\*/g,""); /* título já sai em negrito */
+    return {t:b.t,s:s,ed:ed,modelo:b.tpl!=null};});
+}
+/* lê o parágrafo editado na tela: negrito vira **…**, campo em falta volta a ⟦…⟧, o resto é texto simples */
+function textoDoBloco(el){
+  var s="";
+  (function anda(n,neg){
+    Array.prototype.forEach.call(n.childNodes,function(c){
+      if(c.nodeType===3){s+=c.nodeValue;return;}
+      if(c.nodeType!==1)return;
+      if(c.tagName==="BR"){s+=" ";return;}
+      if(c.tagName==="MARK"){s+=A+c.textContent.replace(/^\[|\]$/g,"")+F;return;}
+      var b=!neg&&(c.tagName==="B"||c.tagName==="STRONG"||/^(bold|[6-9]00)$/.test(c.style&&c.style.fontWeight||""));
+      if(b)s+="**";anda(c,neg||b);if(b)s+="**";
+    });
+  })(el,false);
+  return s.replace(/ /g," ").replace(/\*\*(\s*)\*\*/g,"$1").replace(/\s+/g," ").trim();
+}
+function contratoHTML(ct,editar){
   var ctx=contexto(ct);
-  return '<article class="folha">'+MODELO.map(function(b){
-    var t=preencher(b[1],ctx);
-    if(b[0]==="marca")return '<div class="marca">'+SIMB_V+'<span>'+esc(NOME)+'</span></div>';
-    if(b[0]==="titulo")return '<h1>'+htmlTexto(t)+'</h1>';
-    if(b[0]==="centro")return '<p class="centro">'+htmlTexto(t)+'</p>';
-    if(b[0]==="h")return '<h2'+(/^ANEXO I —/.test(t)?' class="anexo"':'')+'>'+htmlTexto(t)+'</h2>';
-    if(b[0]==="assin")return '<div class="assin"><div><b>CONTRATANTE</b><span>'+htmlTexto(ctx.nomeCli)+'<br>'+htmlTexto(ctx.docCli)+'</span></div><div><b>CONTRATADO</b><span>'+htmlTexto(ctx.nomeK)+'<br>'+htmlTexto(ctx.cpfK)+'</span></div></div>';
-    if(b[0]==="anexo1")return anexoI(ct).map(function(a){
+  return '<article class="folha'+(editar?' folha--editar':'')+'">'+blocosContrato(ct,ctx).map(function(b,i){
+    var t=b.s,at=editar&&TXT_EDITAVEL[b.t]?' contenteditable="true" spellcheck="true" data-bl="'+i+'"'+(b.ed?' data-editado=""':''):'';
+    if(b.t==="marca")return '<div class="marca">'+SIMB_V+'<span>'+esc(NOME)+'</span></div>';
+    if(b.t==="titulo")return '<h1'+at+'>'+htmlTexto(t)+'</h1>';
+    if(b.t==="centro")return '<p class="centro"'+at+'>'+htmlTexto(t)+'</p>';
+    if(b.t==="h")return '<h2'+(/^ANEXO I —/.test(t)?' class="anexo"':'')+at+'>'+htmlTexto(t)+'</h2>';
+    if(b.t==="assin")return '<div class="assin"><div><b>CONTRATANTE</b><span>'+htmlTexto(ctx.nomeCli)+'<br>'+htmlTexto(ctx.docCli)+'</span></div><div><b>CONTRATADO</b><span>'+htmlTexto(ctx.nomeK)+'<br>'+htmlTexto(ctx.cpfK)+'</span></div></div>';
+    if(b.t==="anexo1")return anexoI(ct).map(function(a){
       if(a[0]==="sub")return '<p class="sub"><b>'+htmlTexto(a[1])+'</b></p>';
       if(a[0]==="li")return '<p class="li">'+htmlTexto(a[1])+'</p>';
       return '<p>'+htmlTexto(a[1])+'</p>';
     }).join("");
-    return '<p>'+htmlTexto(t)+'</p>';
+    return '<p'+at+'>'+htmlTexto(t)+'</p>';
   }).join("")+'</article>';
 }
 function faltando(ct){
-  var ctx=contexto(ct),txt=MODELO.map(function(b){return preencher(b[1],ctx);}).join(" ")+ctx.nomeCli+ctx.docCli+ctx.cpfK;
+  var ctx=contexto(ct),txt=blocosContrato(ct,ctx).map(function(b){return b.s;}).join(" ")+ctx.nomeCli+ctx.docCli+ctx.cpfK;
   var r=[],re=new RegExp(A+"(.+?)"+F,"g"),m;
   while((m=re.exec(txt))){if(r.indexOf(m[1])<0)r.push(m[1]);}
   return r;
@@ -611,11 +637,11 @@ function celAssin(rot,nome,doc){
 }
 var MARCADOR='<w:r><w:rPr>'+rpr({})+'</w:rPr><w:t>•</w:t><w:tab/></w:r>';
 function documentoXML(ct,marca){
-  var ctx=contexto(ct),corpo="";
-  MODELO.forEach(function(b,i){
-    var t=preencher(b[1],ctx);
+  var ctx=contexto(ct),corpo="",bl=blocosContrato(ct,ctx).map(function(x){return [x.t,x.s];}); /* texto editado no site vale aqui também */
+  bl.forEach(function(b,i){
+    var t=b[1];
     /* o fecho ("E, por estarem de acordo…") e a data vão para a página das assinaturas, nunca separados delas */
-    if((MODELO[i+1]||[])[0]==="assin"||(MODELO[i+2]||[])[0]==="assin")corpo+=par(t,{jc:b[0]==="centro"?"center":"both",antes:b[0]==="centro"?120:0,depois:b[0]==="centro"?360:120,junto:true});
+    if((bl[i+1]||[])[0]==="assin"||(bl[i+2]||[])[0]==="assin")corpo+=par(t,{jc:b[0]==="centro"?"center":"both",antes:b[0]==="centro"?120:0,depois:b[0]==="centro"?360:120,junto:true});
     else if(b[0]==="marca")corpo+=marca?par("",{img:imgMarca(marca),jc:"center",linha:240,depois:330}):par(NOME.toUpperCase(),{jc:"center",sz:36,ls:16,linha:240,depois:330}); /* centrada, como na tela */
     else if(b[0]==="titulo")corpo+=par("**"+t+"**",{jc:"center",sz:22,ls:6,depois:60});
     else if(b[0]==="centro")corpo+=par(t,{jc:"center",antes:120,depois:280});
@@ -923,7 +949,8 @@ function revisaoHTML(){
 }
 
 Object.assign(S,{slidesHTML:slidesHTML,propostaPDF:propostaPDF,imprimirProposta:imprimirProposta,
-  contratoHTML:contratoHTML,contratoDocx:contratoDocx,contratoPDF:contratoPDF,
+  contratoHTML:contratoHTML,contratoDocx:contratoDocx,contratoPDF:contratoPDF,textoDoBloco:textoDoBloco,textoContrato:textoContrato,
+  modeloContrato:function(){return MODELO.map(function(b){return {t:b[0],tpl:b[1]};});},
   lerOrcamento:lerOrcamento,catItem:catItem,CATS_ORC:CATS_ORC,CAT_DO_PARC:CAT_DO_PARC,resumoOrcPDF:resumoOrcPDF,resumoHTML:resumoHTML,_orc:{lerTexto:lerTextoOrc},faltando:faltando,enderecoCli:enderecoCli,faltaCliente:faltaCliente,revisaoHTML:revisaoHTML,REVISAO:REVISAO,nomeArq:nomeArq,
   _docx:{partes:partesDocx,marcaPNG:marcaPNG,zip:zip}});
 })();
