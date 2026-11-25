@@ -576,6 +576,7 @@ a.lnk > .ik:first-child{width:14px;height:14px;margin:-3px 6px 0 0;vertical-alig
 .sl--passos ul{list-style:none;padding:0}
 .sl--passos .sl__txt{top:0;bottom:0;display:flex;flex-direction:column;justify-content:center} /* texto no meio da página (pedido da Isys, 2026-11-24) */
 .sl--passos .sl__txt ul + p{margin-top:1.6cqw}
+.sl--passos .sl__simb{position:static;align-self:center;margin-bottom:1.6cqw} /* símbolo junto do texto, mesmo espaço da última frase; o conjunto fica no meio da página (2026-11-25) */
 /* 5 investimento (abertura) */
 .sl--abre .sl__h{position:absolute;left:5.6cqw;top:25cqw;font-weight:200;font-size:2.9cqw;letter-spacing:-.05em;line-height:1}
 .sl--abre .sl__h b{font-weight:400;margin-right:1.3cqw;letter-spacing:-.02em}

@@ -61,7 +61,7 @@ function slidesHTML(p){
      INVESTIMENTO e lista como o Escopo). Validade em dias (padrão 10); início = Data sugerida, se houver. */
   var val=Math.max(1,Math.round(num(p.validade)||10));
   var passos='<section class="sl sl--abre"><p class="sl__h"><b>'+nPas+'</b>PRÓXIMOS PASSOS</p><p class="sl__sub">/ Para te ajudar nos próximos passos</p></section>'+
-    '<section class="sl sl--escopo sl--passos"><span class="sl__simb">'+SIMB+'</span><div class="sl__txt"><ul>'+
+    '<section class="sl sl--escopo sl--passos"><div class="sl__txt"><span class="sl__simb">'+SIMB+'</span><ul>'+
       '<li><b>Validade da proposta:</b> '+val+' dia'+(val>1?'s':'')+'</li><li>Dados para cadastro</li><li>Desenvolvimento do contrato</li><li>Assinatura do contrato</li><li>Pagamento</li></ul>'+
       (function(d){d=d.map(S.dataBR);return d.length>1?'<p><b>Datas sugeridas para a produção:</b> '+esc(d.slice(0,-1).join(", ")+" e "+d[d.length-1])+'</p>':d.length?'<p><b>Início da produção:</b> '+esc(d[0])+'</p>':'';})(S.datasProposta(p))+'</div></section>';
   return ''+
