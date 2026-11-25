@@ -566,7 +566,7 @@ function extras(){
   function css(href){return new Promise(function(ok){var l=document.createElement("link");l.rel="stylesheet";l.href=href;l.onload=ok;l.onerror=ok;document.head.appendChild(l);});}
   function js(src){return new Promise(function(ok,erro){var s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=erro;document.body.appendChild(s);});}
   css("https://fonts.googleapis.com/css2?family=Lexend:wght@200;300;400;500;600&family=Lexend+Exa:wght@300;600&display=swap");
-  extrasP=Promise.all([css("sistema.css"),js("sis-docs.js"),js("sis-modulos.js")]);
+  extrasP=Promise.all([css("sistema.css?v=8650bf9d"),js("sis-docs.js?v=c05fedde"),js("sis-modulos.js?v=012b1b6a")]);
   extrasP.catch(function(){extrasP=null;});
   return extrasP;
 }
