@@ -642,6 +642,7 @@ var ICO={
   editar:'<path d="M15.5 4l4.5 4.5L9.5 19h-4.5v-4.5z"/><path d="M13 6.5l4.5 4.5"/>',
   envio:'<path d="M20.5 3.5 3.5 10.5l7 3 3 7z"/><path d="M20.5 3.5l-10 10"/>',
   whats:'<path d="M4 4.5h16v11H9.5L5 19.5v-4H4z"/><path d="M8 9h8M8 12h5"/>',
+  email:'<rect x="3.5" y="5.5" width="17" height="13"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/>',
   entrar:'<path d="M10.5 3.5h8v17h-8"/><path d="M3.5 12H14M10.5 8.5 14 12l-3.5 3.5"/>',
   chave:'<circle cx="8" cy="15.5" r="4.5"/><path d="M11.2 12.3 19.5 4M16 7.5l2.5 2.5M13.5 10l2 2"/>',
   menu:'<path d="M4 7h16M4 12h16M4 17h16"/>',

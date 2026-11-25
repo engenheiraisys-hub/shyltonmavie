@@ -1168,6 +1168,26 @@ function noPeriodo(d){
   if(fFin.per==="esc")return d.slice(0,7)===fFin.mes;
   return true;
 }
+/* Lembrete de RT ao fornecedor por botão (pedido da Isys, 2026-11-24), mesmo com a parcela vencida.
+   O botão grava pedidoLembrete no lançamento; a função de e-mails (roda a cada 10 min) manda ao e-mail do parceiro
+   e grava em lembretes "rt-pedido-<id>-<pedidoLembrete>". Parceiro: parceiroId, a peça da produção ou o nome. */
+function parceiroDoRT(f){
+  var pid=f.parceiroId;
+  if(!pid&&f.producaoId){var p=St.get("producoes",f.producaoId),x=p&&(p.pecas||[]).filter(function(y){return y.id===f.rtPeca;})[0];pid=x&&x.parceiroId;}
+  var pa=pid?St.get("parceiros",pid):null;
+  if(!pa&&f.pagador)pa=St.list("parceiros").filter(function(y){return [y.fornecedor,y.marca,y.produto].indexOf(f.pagador)>=0;})[0]||null;
+  return pa;
+}
+function quandoBR(iso){var d=new Date(iso);return isNaN(d)?"":S.dataBR(S.isoLocal(d))+" às "+("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);}
+function rtLembreteHTML(id,f){
+  var pa=parceiroDoRT(f),em=pa?String(pa.email||"").trim():"",nome=pa?(pa.fornecedor||pa.marca||pa.produto||"parceiro"):"";
+  var ult=St.list("lembretes").filter(function(l){return l.id.indexOf("rt-venc-"+id+"-")===0||l.id.indexOf("rt-pedido-"+id+"-")===0;}).map(function(l){return String(l.enviadoEm||"");}).sort().pop();
+  var pend=f.pedidoLembrete&&!St.get("lembretes","rt-pedido-"+id+"-"+f.pedidoLembrete);
+  var txt=!pa?"Para enviar o lembrete por e-mail, a RT precisa estar ligada a um parceiro (pela produção).":
+    !em?"Para enviar o lembrete, cadastre o e-mail de "+esc(nome)+" em Parceiros.":
+    "Lembrete ao fornecedor: <b>"+esc(nome)+"</b> · "+esc(em)+"."+(pend?" <b>Envio pedido; sai em até 10 minutos.</b>":ult?" Último envio em "+esc(quandoBR(ult))+".":"");
+  return '<div data-rt-box style="margin-bottom:var(--s-16)"><p class="nota">'+txt+'</p>'+(em?'<div class="acoes" style="margin-top:var(--s-12)"><button type="button" class="btn btn--linha" data-rt-lembrete'+(pend?' disabled':'')+'>'+ik("email")+'Enviar lembrete ao fornecedor</button></div>':'')+'</div>';
+}
 function modalFin(id,tipo){
   var f=id?St.copia("financeiro",id):{tipo:tipo||"entrada",data:S.hoje(),status:tipo==="saida"?"pago":"pendente",forma:"PIX",categoria:tipo==="saida"?"Materiais de produção":"Produção"};
   f.categoria=catFin(f.categoria);
@@ -1181,12 +1201,24 @@ function modalFin(id,tipo){
       {k:"contratoId",r:"Contrato",t:"select",o:cons});
   /* Recibo por e-mail (pedido da Isys, 2026-11-24): entrada de contrato marcada como Paga → a função de e-mails manda o recibo ao cliente, uma vez só */
   var rec=id?St.get("lembretes","recibo-"+id):null,pagoAntes=f.status==="pago";
+  var ehRTpend=!!id&&f.tipo==="entrada"&&f.categoria==="RT / comissão"&&f.status!=="pago";
   if(!rec){cs.push({k:"enviarRecibo",r:"Enviar recibo ao cliente por e-mail",t:"check",full:1});if(!pagoAntes)f.enviarRecibo=true;}
   cs.push({k:"pagador",r:"Quem pagou ou recebeu"},{k:"obs",r:"Observação",t:"area",full:1});
   S.modalForm({sobre:"Financeiro",titulo:id?"Editar lançamento":(f.tipo==="saida"?"Nova saída":"Nova entrada"),dados:f,salvarRot:id?"Salvar":"+ Adicionar",campos:cs,
     antes:(ehParc?'<p class="nota" style="margin-bottom:var(--s-16)"><b>Parcela '+esc(f.parcela)+' de '+esc(f.parcelas)+'.</b> As mudanças valem só para esta parcela.</p>':'')+
-      (rec?'<p class="nota" style="margin-bottom:var(--s-16)">Recibo nº '+esc(rec.num)+' enviado ao cliente em '+esc(S.dataBR(String(rec.enviadoEm||"").slice(0,10)))+'.</p>':''),
+      (rec?'<p class="nota" style="margin-bottom:var(--s-16)">Recibo nº '+esc(rec.num)+' enviado ao cliente em '+esc(S.dataBR(String(rec.enviadoEm||"").slice(0,10)))+'.</p>':'')+
+      (ehRTpend?rtLembreteHTML(id,f):''),
     aoAbrir:function(d){if(!ehParc)par=ligarParcelas(d);
+      var bl=$("[data-rt-lembrete]",d);
+      if(bl)bl.addEventListener("click",function(){
+        var pa=parceiroDoRT(f),h=S.hoje(),dt=String(f.data||"");
+        S.confirmar({sobre:"Lembrete de RT",ico:"email",perigo:false,titulo:"Enviar lembrete a "+(pa.fornecedor||pa.marca||"fornecedor")+"?",ok:"Enviar",icoOk:"email",
+          texto:"Vai para "+String(pa.email).trim()+": RT de "+brl(f.valor)+(dt<h?", vencida em "+S.dataBR(dt):dt===h?", vence hoje":", vence em "+S.dataBR(dt))+". Sai em até 10 minutos."}).then(function(sim){
+          if(!sim)return;
+          var c=St.copia("financeiro",id);if(!c)return;delete c.id;c.pedidoLembrete=f.pedidoLembrete=S.agoraISO();
+          return St.salvar("financeiro",id,c).then(function(){var bx=$("[data-rt-box]",d);if(bx)bx.outerHTML=rtLembreteHTML(id,f);S.toast("Lembrete pedido. Sai em até 10 minutos.");},S.erroGravar);
+        });
+      });
       var ck=$('[data-k="enviarRecibo"]',d);if(!ck)return;var lb=ck.closest("label");
       function ver(){var g=function(k){var e=$('[data-k="'+k+'"]',d);return e?e.value:"";};
         lb.hidden=!(g("tipo")==="entrada"&&g("contratoId")&&g("status")==="pago"&&g("categoria")!=="RT / comissão");}
